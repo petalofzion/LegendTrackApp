@@ -147,6 +147,9 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
   const [currentMessage, setCurrentMessage] = useState<string | null>(null);
   const [internalMood, setInternalMood] = useState<MascotMood>('idle');
   const [currentGifIndex, setCurrentGifIndex] = useState(0);
+  const [displayBubble, setDisplayBubble] = useState(false);
+  const bubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bubbleFadeMs = 170;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragMeta = useRef({ startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false });
   const skipClickRef = useRef(false);
@@ -292,16 +295,51 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
     }, duration);
   };
 
+  const scheduleBubbleHide = useCallback(
+    (duration: number) => {
+      if (messageTimer.current) {
+        clearTimeout(messageTimer.current);
+        messageTimer.current = null;
+      }
+      if (bubbleTimerRef.current) {
+        clearTimeout(bubbleTimerRef.current);
+        bubbleTimerRef.current = null;
+      }
+      messageTimer.current = setTimeout(() => {
+        setDisplayBubble(false);
+        bubbleTimerRef.current = setTimeout(() => {
+          setCurrentMessage(null);
+          bubbleTimerRef.current = null;
+        }, bubbleFadeMs);
+        messageTimer.current = null;
+      }, duration);
+    },
+    [bubbleFadeMs],
+  );
+
   // Helper to safely set message with auto-clear
   const setTemporaryMessage = (msg: string | null, duration: number) => {
-      if (messageTimer.current) clearTimeout(messageTimer.current);
-      setCurrentMessage(msg);
-      if (msg) {
-          messageTimer.current = setTimeout(() => {
-              setCurrentMessage(null);
-              messageTimer.current = null;
-          }, duration);
+      if (bubbleTimerRef.current) {
+        clearTimeout(bubbleTimerRef.current);
+        bubbleTimerRef.current = null;
       }
+      if (messageTimer.current) {
+        clearTimeout(messageTimer.current);
+        messageTimer.current = null;
+      }
+
+      if (!msg) {
+        setDisplayBubble(false);
+        bubbleTimerRef.current = setTimeout(() => {
+          setCurrentMessage(null);
+          bubbleTimerRef.current = null;
+        }, bubbleFadeMs);
+        return;
+      }
+
+      setCurrentMessage(msg);
+      setDisplayBubble(true);
+      scheduleBubbleHide(duration);
   };
 
   // Cleanup on unmount
@@ -309,6 +347,7 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
       return () => {
           if (moodTimer.current) clearTimeout(moodTimer.current);
           if (messageTimer.current) clearTimeout(messageTimer.current);
+          if (bubbleTimerRef.current) clearTimeout(bubbleTimerRef.current);
       };
   }, []);
 
@@ -425,6 +464,7 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
   }, [internalMood, zenMode]);
 
   const displayMessage = customMessage || currentMessage;
+  const bubbleVisible = Boolean(customMessage) || (displayBubble && Boolean(currentMessage));
   
   // Safe access to GIF
   let collectionKey: string = internalMood;
@@ -518,11 +558,9 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
       style={{ left: `${position.x}px`, top: `${position.y}px` }}
       onPointerDown={handlePointerDown}
     >
-      {displayMessage && (
-        <div className="mascot-bubble">
-          {displayMessage}
-        </div>
-      )}
+      <div className={`mascot-bubble ${bubbleVisible ? 'visible' : ''}`}>
+        {displayMessage && <span>{displayMessage}</span>}
+      </div>
       <img
         src={currentGif}
         alt="Mascot"

@@ -809,17 +809,28 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
   right: 0;
   bottom: calc(100% + 0.5rem);
   background: white;
-  padding: 1rem 1.5rem;
+  padding: 0.85rem 1.25rem;
   border-radius: 20px 20px 0 20px;
-  box-shadow: 0 8px 20px rgba(100, 80, 120, 0.2);
-  max-width: 250px;
+  box-shadow: 0 8px 20px rgba(100, 80, 120, 0.18);
+  max-width: 260px;
+  width: max-content;
+  max-inline-size: 260px;
   font-family: 'Fredoka', sans-serif;
   color: #6d4c8b;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   border: 2px solid #f0b8d0;
-  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   pointer-events: none;
   user-select: none;
+  text-align: right;
+  transform-origin: bottom right;
+  opacity: 0;
+  transform: translate3d(0, 6px, 0) scale(0.94);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.mascot-bubble.visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
 }
 
 /* Toggles & Misc */

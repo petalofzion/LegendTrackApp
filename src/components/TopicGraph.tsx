@@ -432,6 +432,27 @@ export function TopicGraph({
     const cy = cyRef.current;
     if (!cy) return;
 
+    const reconcileNeighborFade = (key: string | null) => {
+      if (!key) {
+        cy.nodes('.neighbor-repelled').removeClass('neighbor-repelled');
+        return;
+      }
+
+      const clusterNodes = cy.nodes(`[clusterKey = "${key}"]`);
+      if (clusterNodes.length === 0) {
+        cy.nodes('.neighbor-repelled').removeClass('neighbor-repelled');
+        return;
+      }
+
+      const otherNodes = cy.nodes().difference(clusterNodes);
+      otherNodes
+        .filter((node) => !node.hasClass('neighbor-repelled'))
+        .addClass('neighbor-repelled');
+      clusterNodes
+        .filter((node) => node.hasClass('neighbor-repelled'))
+        .removeClass('neighbor-repelled');
+    };
+
     const applyRipple = (
       key: string,
       expand: boolean,
@@ -450,19 +471,27 @@ export function TopicGraph({
       affected.forEach((node) => {
         const baseX = Number(node.data('baseX'));
         const baseY = Number(node.data('baseY'));
-        
-        if (!expand) {
-          node.animate(
-            { position: { x: baseX, y: baseY } },
-            { duration: 220, easing: 'ease-in-out', queue: false },
-          );
-          return;
-        }
 
         const dx = baseX - meta.centerX;
         const dy = baseY - meta.centerY;
         const distance = Math.hypot(dx, dy) || 1;
-        
+
+        if (!expand) {
+          const pos = node.position();
+          const offsetFromBase = Math.hypot(pos.x - baseX, pos.y - baseY);
+          if (offsetFromBase < 0.75) return;
+
+          node.animate(
+            { position: { x: baseX, y: baseY } },
+            {
+              duration: distance > rippleReach ? 160 : 220,
+              easing: distance > rippleReach ? 'ease-out' : 'ease-in-out',
+              queue: false,
+            },
+          );
+          return;
+        }
+
         if (distance > rippleReach) {
           return;
         }
@@ -495,110 +524,127 @@ export function TopicGraph({
       });
     };
 
-	    const animateCluster = (
-	      key: string | null,
-	      expand: boolean,
-	      fadeNeighbors: boolean,
-	    ) => {
-	      if (!key) return;
-	      const nodes = cy.nodes(`[clusterKey = "${key}"]`);
-	      if (expand && nodes.length === 0) {
-	        // If the expanded cluster no longer exists (e.g. filtered out),
-	        // avoid fading everything and clear any leftover neighbor fade.
-	        cy.nodes().removeClass('neighbor-repelled');
-	        return;
-	      }
+    const animateCluster = (
+      key: string | null,
+      expand: boolean,
+      fadeNeighbors: boolean,
+    ) => {
+      if (!key) return;
+      const nodes = cy.nodes(`[clusterKey = "${key}"]`);
+      if (expand && nodes.length === 0) {
+        // If the expanded cluster no longer exists (e.g. filtered out),
+        // avoid fading everything and clear any leftover neighbor fade.
+        cy.nodes().removeClass('neighbor-repelled');
+        return;
+      }
 
       nodes.stop(true);
       if (expand) {
         nodes.removeClass('neighbor-repelled');
       }
       nodes.forEach((node) => {
-	        const targetX = expand
-	          ? Number(node.data('expandedX'))
-	          : Number(node.data('baseX'));
-	        const targetY = expand
-	          ? Number(node.data('expandedY'))
-	          : Number(node.data('baseY'));
-	        if (expand) {
-	          node.addClass('cluster-expanded');
-	        } else {
-	          node.removeClass('cluster-expanded');
-	        }
-	        node.animate(
-	          { position: { x: targetX, y: targetY } },
-	          {
-	            duration: expand ? 260 : 180,
-	            easing: 'ease-in-out',
-	            queue: false,
-	          },
-	        );
-	      });
+        const targetX = expand
+          ? Number(node.data('expandedX'))
+          : Number(node.data('baseX'));
+        const targetY = expand
+          ? Number(node.data('expandedY'))
+          : Number(node.data('baseY'));
+        if (expand) {
+          node.addClass('cluster-expanded');
+        } else {
+          node.removeClass('cluster-expanded');
+        }
+        node.animate(
+          { position: { x: targetX, y: targetY } },
+          {
+            duration: expand ? 260 : 180,
+            easing: 'ease-in-out',
+            queue: false,
+          },
+        );
+      });
 
-	      const otherNodes = cy.nodes().difference(nodes);
-	      if (fadeNeighbors) {
-	        otherNodes.addClass('neighbor-repelled');
-	      } else {
-	        otherNodes.removeClass('neighbor-repelled');
-	      }
+      const otherNodes = cy.nodes().difference(nodes);
+      if (fadeNeighbors) {
+        otherNodes.addClass('neighbor-repelled');
+      } else {
+        otherNodes.removeClass('neighbor-repelled');
+      }
 
-	      if (expand) {
-	        const meta = clusterCenters.get(key);
-	        if (!meta) return;
-	        const safeZone = meta.expandedRadius + 60;
-	        const rippleFalloffZone = 200;
-	        const rippleReach = safeZone + rippleFalloffZone + 120;
+      if (expand) {
+        const meta = clusterCenters.get(key);
+        if (!meta) return;
+        const safeZone = meta.expandedRadius + 60;
+        const rippleFalloffZone = 200;
+        const rippleReach = safeZone + rippleFalloffZone + 120;
 
-	        const rippleNodes = otherNodes.filter((node) => {
-	          const baseX = Number(node.data('baseX'));
-	          const baseY = Number(node.data('baseY'));
-	          const dx = baseX - meta.centerX;
-	          const dy = baseY - meta.centerY;
-	          const distance = Math.hypot(dx, dy) || 1;
-	          return distance <= rippleReach;
-	        });
+        const rippleNodes = otherNodes.filter((node) => {
+          const baseX = Number(node.data('baseX'));
+          const baseY = Number(node.data('baseY'));
+          const dx = baseX - meta.centerX;
+          const dy = baseY - meta.centerY;
+          const distance = Math.hypot(dx, dy) || 1;
+          return distance <= rippleReach;
+        });
 
-	        applyRipple(key, true, rippleNodes);
-	        return;
-	      }
+        applyRipple(key, true, rippleNodes);
+        return;
+      }
 
-	      applyRipple(key, false, otherNodes);
-	    };
+      applyRipple(key, false, otherNodes);
+    };
 
     const previous = prevExpandedCluster.current;
 
-    // 1. Collapse the old cluster FIRST.
-    // When switching directly to a new cluster, avoid unfading the new cluster's nodes
-    // before their expand step, so stop() on them can't freeze opacity mid-transition.
+    // Switching directly between clusters:
+    // retarget everything in one shot to the new cluster's field
+    // (no intermediate "collapse ripple" wave).
     if (previous && previous !== expandedCluster) {
       if (expandedCluster) {
         const prevNodes = cy.nodes(`[clusterKey = "${previous}"]`);
-        prevNodes.stop(true);
-        prevNodes.forEach((node) => {
-          const targetX = Number(node.data('baseX'));
-          const targetY = Number(node.data('baseY'));
-          node.removeClass('cluster-expanded');
-          node.animate(
-            { position: { x: targetX, y: targetY } },
-            { duration: 180, easing: 'ease-in-out', queue: false },
-          );
-        });
+        prevNodes.removeClass('cluster-expanded');
 
-        const otherNodes = cy.nodes().difference(prevNodes);
-        const nextNodes = cy.nodes(`[clusterKey = "${expandedCluster}"]`);
-        otherNodes.difference(nextNodes).removeClass('neighbor-repelled');
-        applyRipple(previous, false, otherNodes);
-      } else {
-        animateCluster(previous, false, false);
+        animateCluster(expandedCluster, true, true);
+
+        const meta = clusterCenters.get(expandedCluster);
+        if (meta) {
+          const safeZone = meta.expandedRadius + 60;
+          const rippleFalloffZone = 200;
+          const rippleReach = safeZone + rippleFalloffZone + 120;
+
+          const nextNodes = cy.nodes(
+            `[clusterKey = "${expandedCluster}"]`,
+          );
+          const otherNodes = cy.nodes().difference(nextNodes);
+          const farNodes = otherNodes.filter((node) => {
+            const baseX = Number(node.data('baseX'));
+            const baseY = Number(node.data('baseY'));
+            const dx = baseX - meta.centerX;
+            const dy = baseY - meta.centerY;
+            const distance = Math.hypot(dx, dy) || 1;
+            return distance > rippleReach;
+          });
+
+          applyRipple(expandedCluster, false, farNodes);
+        }
+
+        prevExpandedCluster.current = expandedCluster;
+        reconcileNeighborFade(expandedCluster);
+        return;
       }
+
+      animateCluster(previous, false, false);
+      prevExpandedCluster.current = expandedCluster;
+      reconcileNeighborFade(null);
+      return;
     }
 
-    // 2. Open the new cluster SECOND.
     if (expandedCluster) {
       animateCluster(expandedCluster, true, true);
     }
 
     prevExpandedCluster.current = expandedCluster;
+    reconcileNeighborFade(expandedCluster);
   }, [
     expandedCluster,
     elements,
