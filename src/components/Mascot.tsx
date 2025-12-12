@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { Topic } from '../types';
 
 type MascotMood = 'idle' | 'happy' | 'excited' | 'sleepy' | 'tickled' | 'bonked' | 'patted' | 'hugged';
 
@@ -141,14 +142,17 @@ interface MascotProps {
   customMessage?: string | null;
   triggerKey?: string | null;
   zenMode?: boolean;
+  focusedTopic?: Topic | null;
 }
 
-export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = false }: MascotProps) {
+export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = false, focusedTopic }: MascotProps) {
   const [currentMessage, setCurrentMessage] = useState<string | null>(null);
+  const [topicExplanation, setTopicExplanation] = useState<string | null>(null);
   const [internalMood, setInternalMood] = useState<MascotMood>('idle');
   const [currentGifIndex, setCurrentGifIndex] = useState(0);
   const [displayBubble, setDisplayBubble] = useState(false);
   const bubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const explanationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bubbleFadeMs = 170;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragMeta = useRef({ startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false });
@@ -378,6 +382,29 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
     return () => window.removeEventListener('resize', handleResize);
   }, [clampToViewport]);
 
+  // Topic Explanation Logic
+  useEffect(() => {
+    if (focusedTopic) {
+        setTemporaryMood('happy', 8000);
+        const desc = focusedTopic.description || "A mysterious topic with no description yet!";
+        const explanation = `✨ ${focusedTopic.topicName} ✨\n\n${desc}`;
+        
+        // Use separate explanation bubble
+        setTopicExplanation(explanation);
+        
+        // Clear previous timer
+        if (explanationTimerRef.current) clearTimeout(explanationTimerRef.current);
+        
+        // Auto hide after 12s
+        explanationTimerRef.current = setTimeout(() => {
+            setTopicExplanation(null);
+            explanationTimerRef.current = null;
+        }, 12000);
+    } else {
+        setTopicExplanation(null);
+    }
+  }, [focusedTopic]);
+
   // Sync prop mood to internal state but allow overrides
   useEffect(() => {
     if (mood !== 'idle') {
@@ -561,6 +588,12 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
       <div className={`mascot-bubble ${bubbleVisible ? 'visible' : ''}`}>
         {displayMessage && <span>{displayMessage}</span>}
       </div>
+      
+      {/* Separate Description Bubble */}
+      <div className={`mascot-desc-bubble ${topicExplanation ? 'visible' : ''}`}>
+        {topicExplanation && <span>{topicExplanation}</span>}
+      </div>
+
       <img
         src={currentGif}
         alt="Mascot"

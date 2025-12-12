@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import type { Project, Topic } from './types';
 import { TopicGraph } from './components/TopicGraph';
+import { CuteSelect } from './components/CuteSelect';
 import './App.css';
 import {
   deriveDepthDelta,
@@ -180,40 +181,66 @@ function App() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    async function loadData() {
-      try {
-        const base = new URL(import.meta.env.BASE_URL || '/', window.location.origin);
-        const topicsUrl = new URL('data/topics.json', base);
-        const projectsUrl = new URL('data/projects.json', base);
-        const [topicsRes, projectsRes] = await Promise.all([
-          fetch(topicsUrl, { signal: controller.signal }),
-          fetch(projectsUrl, { signal: controller.signal }),
-        ]);
-        if (!topicsRes.ok || !projectsRes.ok) {
-          throw new Error('Failed to load roadmap data');
-        }
-        const [topicsJson, projectsJson] = await Promise.all([
-          topicsRes.json(),
-          projectsRes.json(),
-        ]);
-        if (!controller.signal.aborted) {
-          setTopics(topicsJson as Topic[]);
-          const normalizedProjects = (projectsJson as Project[]).map((project) => ({
-            ...project,
-            id: project.id || project.title,
-          }));
-          setProjects(normalizedProjects);
-        }
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return;
-        console.error(err);
+  const fetchData = useCallback(async () => {
+    try {
+      const [topicsRes, projectsRes] = await Promise.all([
+        fetch(`${apiBase}/api/topics`),
+        fetch(`${apiBase}/api/projects`),
+      ]);
+      if (!topicsRes.ok || !projectsRes.ok) {
+        throw new Error('Failed to load roadmap data');
       }
+      const [topicsJson, projectsJson] = await Promise.all([
+        topicsRes.json(),
+        projectsRes.json(),
+      ]);
+      setTopics(topicsJson as Topic[]);
+      const normalizedProjects = (projectsJson as Project[]).map((project) => ({
+        ...project,
+        id: project.id || project.title,
+      }));
+      setProjects(normalizedProjects);
+    } catch (err) {
+      console.error('Failed to load roadmap data', err);
     }
-    loadData();
-    return () => controller.abort();
-  }, []);
+  }, [apiBase]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: number | null = null;
+
+    const connect = () => {
+      eventSource?.close();
+      try {
+        eventSource = new EventSource(`${apiBase}/api/events`);
+      } catch (err) {
+        console.error('Failed to open event stream', err);
+        reconnectTimer = window.setTimeout(connect, 3000);
+        return;
+      }
+      eventSource.onmessage = () => {
+        fetchData();
+      };
+      eventSource.onerror = () => {
+        eventSource?.close();
+        reconnectTimer = window.setTimeout(connect, 3000);
+      };
+    };
+
+    connect();
+
+    return () => {
+      eventSource?.close();
+      if (reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
+      }
+    };
+  }, [apiBase, fetchData]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -280,14 +307,15 @@ function App() {
     searchTerm,
   ]);
 
-  const finalFilteredTopics = useMemo(() => {
+  const constellationFilteredTopics = useMemo(() => {
+    if (depthStateFilter === 'All') {
+      return plannerFilteredTopics;
+    }
     return plannerFilteredTopics.filter((topic) => {
       const depthMeta = depthMetaById.get(topic.id);
-      const matchesDepthState =
-        depthStateFilter === 'All' || depthMeta?.state === depthStateFilter;
-      return matchesDepthState;
+      return depthMeta?.state === depthStateFilter;
     });
-  }, [plannerFilteredTopics, depthStateFilter, depthMetaById]);
+  }, [plannerFilteredTopics, depthMetaById, depthStateFilter]);
 
   const highlightedIds = useMemo(() => {
     if (selectedProjectId === 'All') {
@@ -321,7 +349,7 @@ function App() {
 
   const groupedByEpoch = useMemo(() => {
     const groups = new Map<number, Topic[]>();
-    for (const topic of finalFilteredTopics) {
+    for (const topic of constellationFilteredTopics) {
       if (topic.epoch === null) continue;
       if (!groups.has(topic.epoch)) {
         groups.set(topic.epoch, []);
@@ -335,7 +363,7 @@ function App() {
         theme: epochTopics[0]?.epochTheme ?? '',
         topics: epochTopics.sort((a, b) => compareTopicIds(a.id, b.id)),
       }));
-  }, [finalFilteredTopics]);
+  }, [constellationFilteredTopics]);
 
   function badgeClass(status: string) {
     switch (status) {
@@ -399,10 +427,19 @@ function App() {
     );
   }
 
+  const focusedTopicObj = useMemo(() => {
+    return topics.find((t) => t.id === focusedTopic) || null;
+  }, [topics, focusedTopic]);
+
   return (
     <div className={`app ${zenMode ? 'zen-active' : ''} ${raveMode ? 'rave-active' : ''}`}>
       <ClickSparkles />
-      <Mascot mood={focusedTopic ? 'happy' : 'idle'} triggerKey={focusedTopic} zenMode={zenMode} />
+      <Mascot 
+        mood={focusedTopic ? 'happy' : 'idle'} 
+        triggerKey={focusedTopic} 
+        zenMode={zenMode} 
+        focusedTopic={focusedTopicObj}
+      />
       <button 
         className="zen-toggle" 
         onClick={() => setZenMode(!zenMode)}
@@ -457,48 +494,27 @@ function App() {
         <div className="filters">
           <label>
             Pathway
-            <select
+            <CuteSelect
               value={filters.track}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, track: event.target.value }))
-              }
-            >
-              {trackOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              options={trackOptions}
+              onChange={(val) => setFilters((prev) => ({ ...prev, track: val }))}
+            />
           </label>
           <label>
             Aura
-            <select
+            <CuteSelect
               value={filters.status}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, status: event.target.value }))
-              }
-            >
-              {statusOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              options={statusOptions}
+              onChange={(val) => setFilters((prev) => ({ ...prev, status: val }))}
+            />
           </label>
           <label>
             Spirit Level
-            <select
+            <CuteSelect
               value={filters.depth}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, depth: event.target.value }))
-              }
-            >
-              {depthOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              options={depthOptions}
+              onChange={(val) => setFilters((prev) => ({ ...prev, depth: val }))}
+            />
           </label>
           <label>
             Crystal Scry
@@ -511,17 +527,14 @@ function App() {
           </label>
           <label>
             Focus Spell
-            <select
+            <CuteSelect
               value={selectedProjectId}
-              onChange={(event) => setSelectedProjectId(event.target.value)}
-            >
-              <option value="All">All Fragments</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.title}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedProjectId(val)}
+              options={[
+                { label: 'All Fragments', value: 'All' },
+                ...projects.map((p) => ({ label: p.title, value: p.id }))
+              ]}
+            />
           </label>
         </div>
         <section className="summary">
@@ -531,7 +544,7 @@ function App() {
           </div>
           <div>
             <p className="summary-label">Visible</p>
-            <p className="summary-value">{plannerFilteredTopics.length}</p>
+            <p className="summary-value">{constellationFilteredTopics.length}</p>
           </div>
           <div>
             <p className="summary-label">Quests Logged</p>
@@ -576,163 +589,141 @@ function App() {
                   </button>
                 </div>
                 <TopicGraph
-                    topics={finalFilteredTopics}
-                    highlightedIds={highlightedIds}
-                    focusedTopicId={focusedTopic}
-                    onSelectTopic={(id) => setFocusedTopic(id)}
-                    searchTerm={searchTerm}
-                  />
+                  topics={constellationFilteredTopics}
+                  highlightedIds={highlightedIds}
+                  focusedTopicId={focusedTopic}
+                  onSelectTopic={(id) => setFocusedTopic(id)}
+                  searchTerm={searchTerm}
+                />
               </section>
 
-              {finalFilteredTopics.length === 0 ? (
+              {constellationFilteredTopics.length === 0 ? (
                 <EmptyState />
               ) : (
                 <>
                   {groupedByEpoch.map((epoch) => (
                     <section className="epoch" key={epoch.epoch}>
-                  <div className="epoch-heading">
-                    <div>
-                      <h2>
-                        Chapter {epoch.epoch}: {epoch.theme}
-                      </h2>
-                      <p className="epoch-subtitle">
-                        Spiral deeper by pairing this chapter with neighboring pathways.
-                      </p>
-                    </div>
-                    <div className="epoch-actions">
-                      <span>{epoch.topics.length} stars</span>
-                      <button
-                        type="button"
-                        className="epoch-toggle"
-                        onClick={() => toggleEpochCollapse(epoch.epoch)}
-                      >
-                        {collapsedEpochs.has(epoch.epoch) ? 'Expand' : 'Collapse'}
-                      </button>
-                    </div>
-                  </div>
-                  {!collapsedEpochs.has(epoch.epoch) && (
-                    <div className="topic-grid">
-                      {epoch.topics.map((topic) => (
-                        <article
-                          className={`topic-card ${isHighlighted(topic.id) ? 'highlighted' : ''} ${
-                            focusedTopic === topic.id ? 'focused' : ''
-                          }`}
-                          key={topic.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setFocusedTopic(topic.id)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault();
-                              setFocusedTopic(topic.id);
-                            }
-                          }}
-                        >
-                          <header>
-                            <p className="topic-id">{topic.id}</p>
-                            <h3>{topic.topicName}</h3>
-                            <p className="topic-track">
-                              Pathway {topic.track} · {topic.trackTitle}
-                            </p>
-                          </header>
-                          <p className="topic-description">{topic.description}</p>
-                          <dl className="topic-meta">
-                            <div>
-                              <dt>Spirit Level</dt>
-                              <dd>
-                                <select
-                                  value={topic.depthTarget || ''}
-                                  disabled={isUpdatingTopic(topic.id)}
-                                  onClick={(event) => event.stopPropagation()}
-                                  onChange={(event) =>
-                                    persistTopicChanges(topic.id, {
-                                      depthTarget: event.target.value || '',
-                                    })
-                                  }
-                                >
-                                  <option value="">—</option>
-                                  {depthChoices.map((choice) => (
-                                    <option key={choice} value={choice}>
-                                      {choice}
-                                    </option>
-                                  ))}
-                                </select>
-                              </dd>
-                            </div>
-                            <div>
-                              <dt>Current Depth</dt>
-                              <dd>
-                                <select
-                                  value={topic.currentDepth || ''}
-                                  disabled={isUpdatingTopic(topic.id)}
-                                  onClick={(event) => event.stopPropagation()}
-                                  onChange={(event) =>
-                                    persistTopicChanges(topic.id, {
-                                      currentDepth: event.target.value || '',
-                                    })
-                                  }
-                                >
-                                  <option value="">—</option>
-                                  {depthChoices.map((choice) => (
-                                    <option key={choice} value={choice}>
-                                      {choice}
-                                    </option>
-                                  ))}
-                                </select>
-                              </dd>
-                            </div>
-                            <div>
-                              <dt>Aura</dt>
-                              <dd className={badgeClass(topic.status)}>
-                                <select
-                                  value={topic.status || ''}
-                                  disabled={isUpdatingTopic(topic.id)}
-                                  onClick={(event) => event.stopPropagation()}
-                                  onChange={(event) =>
-                                    persistTopicChanges(topic.id, {
-                                      status: event.target.value || '',
-                                    })
-                                  }
-                                >
-                                  <option value="">—</option>
-                                  {statusFilterOptions.map((choice) => (
-                                    <option key={choice} value={choice}>
-                                      {choice}
-                                    </option>
-                                  ))}
-                                </select>
-                              </dd>
-                            </div>
-                            <div>
-                              <dt>Last Worked</dt>
-                              <dd>{topic.lastWorkedOn || '—'}</dd>
-                            </div>
-                          </dl>
-                          {renderDepthDelta(topic)}
-                          <p className="topic-notes">
-                            {topic.notes ||
-                              topic.exampleProject ||
-                              'No notes yet. Add concept / implementation / application evidence!'}
+                      <div className="epoch-heading">
+                        <div>
+                          <h2>
+                            Chapter {epoch.epoch}: {epoch.theme}
+                          </h2>
+                          <p className="epoch-subtitle">
+                            Spiral deeper by pairing this chapter with neighboring pathways.
                           </p>
-                          <div className="trinity-row">
-                            <TrinityBadge label="Concept" value={topic.conceptEvidence} />
-                            <TrinityBadge
-                              label="Impl"
-                              value={topic.implementationEvidence}
-                            />
-                            <TrinityBadge label="App" value={topic.applicationEvidence} />
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              ))}
+                        </div>
+                        <div className="epoch-actions">
+                          <span>{epoch.topics.length} stars</span>
+                          <button
+                            type="button"
+                            className="epoch-toggle"
+                            onClick={() => toggleEpochCollapse(epoch.epoch)}
+                          >
+                            {collapsedEpochs.has(epoch.epoch) ? 'Expand' : 'Collapse'}
+                          </button>
+                        </div>
+                      </div>
+                      {!collapsedEpochs.has(epoch.epoch) && (
+                        <div className="topic-grid">
+                          {epoch.topics.map((topic) => (
+                            <article
+                              className={`topic-card ${isHighlighted(topic.id) ? 'highlighted' : ''} ${
+                                focusedTopic === topic.id ? 'focused' : ''
+                              }`}
+                              key={topic.id}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => setFocusedTopic(topic.id)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  setFocusedTopic(topic.id);
+                                }
+                              }}
+                            >
+                              <header>
+                                <p className="topic-id">{topic.id}</p>
+                                <h3>{topic.topicName}</h3>
+                                <p className="topic-track">
+                                  Pathway {topic.track} · {topic.trackTitle}
+                                </p>
+                              </header>
+                              <p className="topic-description">{topic.description}</p>
+                                                        <dl className="topic-meta">
+                                                          <div>
+                                                            <dt>Spirit Level</dt>
+                                                            <dd>
+                                                              <CuteSelect
+                                                                value={topic.depthTarget || ''}
+                                                                disabled={isUpdatingTopic(topic.id)}
+                                                                options={['', ...depthChoices]}
+                                                                onChange={(val) =>
+                                                                  persistTopicChanges(topic.id, {
+                                                                    depthTarget: val,
+                                                                  })
+                                                                }
+                                                              />
+                                                            </dd>
+                                                          </div>
+                                                          <div>
+                                                            <dt>Current Depth</dt>
+                                                            <dd>
+                                                              <CuteSelect
+                                                                value={topic.currentDepth || ''}
+                                                                disabled={isUpdatingTopic(topic.id)}
+                                                                options={['', ...depthChoices]}
+                                                                onChange={(val) =>
+                                                                  persistTopicChanges(topic.id, {
+                                                                    currentDepth: val,
+                                                                  })
+                                                                }
+                                                              />
+                                                            </dd>
+                                                          </div>
+                                                          <div>
+                                                            <dt>Aura</dt>
+                                                            <dd className={badgeClass(topic.status)}>
+                                                              <CuteSelect
+                                                                value={topic.status || ''}
+                                                                disabled={isUpdatingTopic(topic.id)}
+                                                                options={['', ...statusFilterOptions]}
+                                                                onChange={(val) =>
+                                                                  persistTopicChanges(topic.id, {
+                                                                    status: val,
+                                                                  })
+                                                                }
+                                                              />
+                                                            </dd>
+                                                          </div>
+                                                          <div>
+                                                            <dt>Last Worked</dt>
+                                                            <dd>{topic.lastWorkedOn || '—'}</dd>
+                                                          </div>
+                                                        </dl>                              {renderDepthDelta(topic)}
+                              <p className="topic-notes">
+                                {topic.notes ||
+                                  topic.exampleProject ||
+                                  'No notes yet. Add concept / implementation / application evidence!'}
+                              </p>
+                              <div className="trinity-row">
+                                <TrinityBadge label="Concept" value={topic.conceptEvidence} />
+                                <TrinityBadge
+                                  label="Impl"
+                                  value={topic.implementationEvidence}
+                                />
+                                <TrinityBadge label="App" value={topic.applicationEvidence} />
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  ))}
+                </>
+              )}
             </>
           )}
-        </>
-      )}
-    </main>
+        </main>
 
         <div className="projects-column">
           <aside className="projects-panel">

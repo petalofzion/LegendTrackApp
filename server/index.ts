@@ -1,10 +1,12 @@
-import express from 'express';
+import express, { type Response } from 'express';
 import cors from 'cors';
 import xlsx from 'xlsx';
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import chokidar from 'chokidar';
 import { resolveTrackerPath } from '../scripts/config.ts';
+import { getTrackerPath, loadWorkbookData } from '../scripts/workbook.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -114,6 +116,31 @@ function updateTopicRow(topicId: string, payload: TopicUpdatePayload) {
 let exportInFlight = false;
 let exportQueued = false;
 
+type SSEPayload = {
+  type: string;
+  [key: string]: unknown;
+};
+
+const sseClients = new Set<Response>();
+let broadcastTimeout: NodeJS.Timeout | null = null;
+
+function broadcast(payload: SSEPayload) {
+  const body = `data: ${JSON.stringify(payload)}\n\n`;
+  for (const client of sseClients) {
+    client.write(body);
+  }
+}
+
+function scheduleBroadcast() {
+  if (broadcastTimeout) return;
+  broadcastTimeout = setTimeout(() => {
+    broadcastTimeout = null;
+    if (sseClients.size > 0) {
+      broadcast({ type: 'topics-updated' });
+    }
+  }, 150);
+}
+
 function runExportData() {
   if (exportInFlight) {
     exportQueued = true;
@@ -148,12 +175,43 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/topics', (_req, res) => {
+  try {
+    const { topics } = loadWorkbookData();
+    res.json(topics);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: (err as Error).message });
+  }
+});
+
+app.get('/api/projects', (_req, res) => {
+  try {
+    const { projects } = loadWorkbookData();
+    res.json(projects);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: (err as Error).message });
+  }
+});
+
+app.get('/api/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+  res.write(':\n\n');
+  sseClients.add(res);
+  req.on('close', () => {
+    sseClients.delete(res);
+  });
+});
+
 app.post('/api/topics/:id', (req, res) => {
   const { id } = req.params;
   const updates = req.body as TopicUpdatePayload;
   try {
     updateTopicRow(id, updates);
     runExportData();
+    scheduleBroadcast();
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -164,3 +222,12 @@ app.post('/api/topics/:id', (req, res) => {
 app.listen(PORT, () => {
   console.log(`LegendTrack API listening on http://localhost:${PORT}`);
 });
+
+try {
+  const watcher = chokidar.watch(getTrackerPath(), { ignoreInitial: true });
+  watcher.on('change', () => {
+    scheduleBroadcast();
+  });
+} catch (err) {
+  console.warn('Unable to watch tracker for updates:', err);
+}
