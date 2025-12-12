@@ -466,8 +466,10 @@ export function TopicGraph({
         cancelAnimationFrame(reconcileRaf.current);
       }
       reconcileRaf.current = requestAnimationFrame(() => {
-        reconcileRaf.current = null;
-        reconcileNeighborFade(key);
+        reconcileRaf.current = requestAnimationFrame(() => {
+          reconcileRaf.current = null;
+          reconcileNeighborFade(key);
+        });
       });
     };
 

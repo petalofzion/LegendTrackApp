@@ -401,8 +401,8 @@
   color: #6e55a4; font-weight: 700; cursor: pointer; transition: all 0.2s ease; font-family: 'Fredoka', sans-serif;
 }
 .epoch-toggle:hover { background: linear-gradient(145deg, rgba(166, 143, 220, 0.32), rgba(255, 200, 232, 0.35)); transform: translateY(-2px); }
-.epoch-heading h2 { margin: 0; color: #7b5ab6; font-family: 'Fredoka', cursive; font-size: 2rem; }
-.epoch-subtitle { margin: 0.4rem 0 0; color: #8f7da7; font-size: 0.95rem; }
+.epoch-heading h2 { margin: 0; color: #f06ea9; font-family: 'Fredoka', cursive; font-size: 2rem; text-shadow: 2px 2px 0px #fff; }
+.epoch-subtitle { margin: 0.4rem 0 0; color: #9077af; font-size: 0.95rem; font-weight: 600; }
 
 .topic-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.2rem; }
 .topic-card {
@@ -423,8 +423,8 @@
 
 .topic-id { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.12em; color: #b58ec8; margin: 0; font-weight: 700; }
 .topic-track { font-size: 0.9rem; color: #8d7fb9; margin: 0.2rem 0 0; }
-.topic-card h3 { font-family: 'Fredoka', sans-serif; color: #5d4c72; margin: 0; font-size: 1.25rem; }
-.topic-description { font-size: 0.95rem; color: #57446e; min-height: 3rem; line-height: 1.5; }
+.topic-card h3 { font-family: 'Fredoka', sans-serif; color: #d45d9e; margin: 0; font-size: 1.25rem; }
+.topic-description { font-size: 0.95rem; color: #6b5b95; min-height: 3rem; line-height: 1.5; }
 .topic-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin: 0; }
 .topic-meta dt { font-size: 0.75rem; text-transform: uppercase; color: #9883a8; letter-spacing: 0.08em; font-weight: 700; }
 .topic-meta dd { margin: 0.2rem 0 0; font-size: 0.9rem; color: #453956; }
