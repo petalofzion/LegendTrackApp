@@ -1,0 +1,81 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Chewy&family=Fredoka:wght@300;400;500;600&display=swap');
+
+:root {
+  font-family: 'Nunito', 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --cursor-url: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" style="fill:pink;stroke:white;stroke-width:2px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z"/></svg>'); 
+  /* A cute paw cursor using SVG data URI */
+  /* No-gap chubby paw: Toes moved down to touch the main pad for a unified shape */
+  --cursor-paw: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" style="filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.15));"><g fill="%23FFB6C1" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="7" cy="17" rx="3.5" ry="4.5" transform="rotate(-30, 7, 17)" /><ellipse cx="14" cy="13" rx="4" ry="5" transform="rotate(-10, 14, 13)" /><ellipse cx="22" cy="13" rx="4" ry="5" transform="rotate(10, 22, 13)" /><ellipse cx="29" cy="17" rx="3.5" ry="4.5" transform="rotate(30, 29, 17)" /><path d="M18 32 C 12 32 8 27 8 22 C 8 19 11 17 13 18 C 15 19 16 20 18 18 C 20 20 21 19 23 18 C 25 17 28 19 28 22 C 28 27 24 32 18 32 Z" /></g></svg>') 18 18, auto;
+}
+
+html {
+  height: 100%;
+  overflow: hidden; /* Disable browser scrollbar */
+}
+
+/* Default Light/Pink Scrollbar */
+::-webkit-scrollbar {
+  width: 12px;
+}
+::-webkit-scrollbar-track {
+  background: #fff0f5; 
+}
+::-webkit-scrollbar-thumb {
+  background-color: #ffb6c1;
+  border-radius: 20px;
+  border: 3px solid #fff0f5;
+}
+
+*,
+*::before,
+*::after,
+html,
+body,
+button,
+a,
+input,
+select,
+textarea,
+canvas,
+div:active,
+button:active,
+a:active,
+*:focus {
+  box-sizing: border-box;
+  cursor: var(--cursor-paw);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Specific override for Cytoscape container and its children to fight inline styles */
+.graph-wrapper, 
+.graph-wrapper * {
+    cursor: var(--cursor-paw) !important;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden; /* Disable body scroll */
+  background: linear-gradient(145deg, #fde2f3, #e7f0ff 40%, #f6e6ff);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='120' height='120' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='20' y='40' font-size='32' fill='rgba(255,178,216,0.25)'%3E%F0%9F%92%97%3C/text%3E%3Ctext x='70' y='90' font-size='28' fill='rgba(173,206,255,0.3)'%3E%F0%9F%A6%86%3C/text%3E%3C/svg%3E");
+  opacity: 0.45;
+  z-index: -1;
+}

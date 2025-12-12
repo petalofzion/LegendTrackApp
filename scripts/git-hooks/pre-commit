@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "📝 LegendTrack_Map: syncing tracker data before commit..."
+npm run ensure:data

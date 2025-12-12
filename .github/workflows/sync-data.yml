@@ -1,0 +1,42 @@
+name: Sync Tracker Data
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  export-json:
+    runs-on: ubuntu-latest
+    env:
+      TRACKER_WORKBOOK: ${{ github.workspace }}/secure/LegendTrack_Cpp_Tracker.xlsx
+      NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Restore private tracker workbook
+        if: ${{ secrets.TRACKER_XLSX_B64 != '' }}
+        run: |
+          mkdir -p "$(dirname "$TRACKER_WORKBOOK")"
+          echo "${{ secrets.TRACKER_XLSX_B64 }}" | base64 --decode > "$TRACKER_WORKBOOK"
+          echo "TRACKER_PATH=$TRACKER_WORKBOOK" >> "$GITHUB_ENV"
+
+      - name: Export topics + projects JSON
+        run: npm run ensure:data
+
+      - name: Upload roadmap data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: legendtrack-roadmap-json
+          path: public/data/*.json
