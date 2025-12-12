@@ -447,7 +447,6 @@ export function TopicGraph({
       const rippleFalloffZone = 200; // How far beyond safeZone the push extends
       const rippleReach = safeZone + rippleFalloffZone + 120; // Further reach to preserve ripple feel
 
-      affected.stop(true);
       affected.forEach((node) => {
         const baseX = Number(node.data('baseX'));
         const baseY = Number(node.data('baseY'));
@@ -510,8 +509,11 @@ export function TopicGraph({
 	        return;
 	      }
 
-	      nodes.stop(true);
-	      nodes.forEach((node) => {
+      nodes.stop(true);
+      if (expand) {
+        nodes.removeClass('neighbor-repelled');
+      }
+      nodes.forEach((node) => {
 	        const targetX = expand
 	          ? Number(node.data('expandedX'))
 	          : Number(node.data('baseX'));
@@ -564,16 +566,34 @@ export function TopicGraph({
 	    };
 
     const previous = prevExpandedCluster.current;
-    
-    // 1. Collapse the old cluster FIRST. 
-    // This resets its nodes to base and tries to unfade neighbors.
+
+    // 1. Collapse the old cluster FIRST.
+    // When switching directly to a new cluster, avoid unfading the new cluster's nodes
+    // before their expand step, so stop() on them can't freeze opacity mid-transition.
     if (previous && previous !== expandedCluster) {
-      animateCluster(previous, false, false);
+      if (expandedCluster) {
+        const prevNodes = cy.nodes(`[clusterKey = "${previous}"]`);
+        prevNodes.stop(true);
+        prevNodes.forEach((node) => {
+          const targetX = Number(node.data('baseX'));
+          const targetY = Number(node.data('baseY'));
+          node.removeClass('cluster-expanded');
+          node.animate(
+            { position: { x: targetX, y: targetY } },
+            { duration: 180, easing: 'ease-in-out', queue: false },
+          );
+        });
+
+        const otherNodes = cy.nodes().difference(prevNodes);
+        const nextNodes = cy.nodes(`[clusterKey = "${expandedCluster}"]`);
+        otherNodes.difference(nextNodes).removeClass('neighbor-repelled');
+        applyRipple(previous, false, otherNodes);
+      } else {
+        animateCluster(previous, false, false);
+      }
     }
 
     // 2. Open the new cluster SECOND.
-    // This applies the new ripple (pushing nodes away) and new fade (dimming neighbors).
-    // Since this runs last, its animations/styles will take precedence, fixing the "glitch".
     if (expandedCluster) {
       animateCluster(expandedCluster, true, true);
     }

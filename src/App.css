@@ -564,31 +564,34 @@
   color: #e3d0ff;
 }
 
-/* Zen Mode Transition - Transform Only (Zero Layout Jumps) */
+/* Zen Mode Transition - Transform Slide (Zero Jumps) */
 .app-header,
 .controls-panel {
-    transition: transform 2s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 1.5s ease 0.5s;
+    transition: transform 1.5s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 1s ease 0.5s;
     transform: translateY(0);
     opacity: 1;
+    /* No layout changes = No jumps */
 }
 
 .projects-column, 
 .epoch, 
 .floating-charms {
-    transition: opacity 1.5s ease 0.5s;
+    transition: opacity 1s ease 0.5s;
     opacity: 1;
 }
 
 .content-layout {
-    transition: transform 2s cubic-bezier(0.4, 0.0, 0.2, 1);
+    transition: transform 1.5s cubic-bezier(0.4, 0.0, 0.2, 1);
     transform: translateY(0);
 }
 
 .zen-active .app-header,
 .zen-active .controls-panel {
-    /* Enter Zen: Fade out in place */
-    transition: opacity 0.8s ease;
-    transform: translateY(0); /* Stay put to hold layout */
+    /* Enter Zen: Fade (0s), Fly Up (0.5s delay) */
+    transition: 
+        opacity 0.8s ease,
+        transform 1.5s cubic-bezier(0.4, 0.0, 0.2, 1) 0.5s;
+    transform: translateY(-100vh); /* Fly completely off screen */
     opacity: 0;
     pointer-events: none;
 }
@@ -601,12 +604,12 @@
     pointer-events: none;
 }
 
-/* Slide Graph Up to Cover Empty Header */
+/* Slide Graph Up Dynamically - Aggressive */
 .zen-active .content-layout {
-    transition: transform 2s cubic-bezier(0.4, 0.0, 0.2, 1) 0.5s; /* Delay movement */
-    transform: translateY(-350px); 
+    transition: transform 1.5s cubic-bezier(0.4, 0.0, 0.2, 1) 0.5s;
+    transform: translateY(-75vh); 
+    margin-bottom: -80vh; /* Eat the empty scroll space at the bottom */
 }
-
 
 
 .zen-active .projects-column,
@@ -778,24 +781,45 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
 
 /* Mascots */
 .mascot-image {
-  width: 120px; height: 120px; filter: drop-shadow(0 5px 15px rgba(0,0,0,0.2)); cursor: var(--cursor-paw); pointer-events: auto; transition: transform 0.2s;
+  width: 120px;
+  height: 120px;
+  filter: drop-shadow(0 5px 15px rgba(0,0,0,0.2));
+  cursor: var(--cursor-paw);
+  pointer-events: auto;
+  transition: transform 0.2s;
+  will-change: transform;
 }
 .mascot-image:hover { transform: scale(1.1) rotate(5deg); }
 .mascot-container {
+  display: inline-block;
   position: fixed;
   z-index: 100;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
   pointer-events: auto;
-  cursor: grab;
+  cursor: var(--cursor-paw);
   touch-action: none;
+  user-select: none;
 }
-.mascot-container.dragging {
-  cursor: grabbing;
+.mascot-container *,
+.mascot-container.dragging,
+.mascot-container.dragging * {
+  cursor: var(--cursor-paw);
 }
 .mascot-bubble {
-  background: white; padding: 1rem 1.5rem; border-radius: 20px 20px 0 20px; box-shadow: 0 8px 20px rgba(100, 80, 120, 0.2); margin-bottom: 0.5rem; max-width: 250px; font-family: 'Fredoka', sans-serif; color: #6d4c8b; font-size: 0.95rem; border: 2px solid #f0b8d0; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto;
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.5rem);
+  background: white;
+  padding: 1rem 1.5rem;
+  border-radius: 20px 20px 0 20px;
+  box-shadow: 0 8px 20px rgba(100, 80, 120, 0.2);
+  max-width: 250px;
+  font-family: 'Fredoka', sans-serif;
+  color: #6d4c8b;
+  font-size: 0.95rem;
+  border: 2px solid #f0b8d0;
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  pointer-events: none;
+  user-select: none;
 }
 
 /* Toggles & Misc */

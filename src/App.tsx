@@ -150,6 +150,12 @@ function App() {
   }
 
   useEffect(() => {
+    if (zenMode) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [zenMode]);
+
+  useEffect(() => {
     const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
     const handleKeyDown = (e: KeyboardEvent) => {
       inputSequence.current = [...inputSequence.current, e.key].slice(-10);

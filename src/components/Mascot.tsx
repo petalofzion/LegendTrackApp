@@ -152,6 +152,8 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
   const skipClickRef = useRef(false);
   const [position, setPosition] = useState<MascotPosition>(() => getInitialPosition());
   const [isDragging, setIsDragging] = useState(false);
+  const pointerIdRef = useRef<number | null>(null);
+  const draggingRef = useRef(false);
 
   // Refs to track active timers for cleanup
   const moodTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -194,6 +196,77 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
     },
     [clampToViewport],
   );
+
+  const handleGlobalPointerMove = useCallback(
+    (event: PointerEvent) => {
+      if (!draggingRef.current) return;
+      if (pointerIdRef.current !== null && event.pointerId !== pointerIdRef.current) {
+        return;
+      }
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      const meta = dragMeta.current;
+      const rawPosition = {
+        x: event.clientX - meta.offsetX,
+        y: event.clientY - meta.offsetY,
+      };
+      const distance = Math.hypot(event.clientX - meta.startX, event.clientY - meta.startY);
+      if (!meta.moved) {
+        if (distance <= 4) {
+          return;
+        }
+        meta.moved = true;
+        skipClickRef.current = true;
+      }
+      moveMascot(rawPosition);
+    },
+    [moveMascot],
+  );
+
+  const handleGlobalPointerUp = useCallback(
+    (event: PointerEvent) => {
+      if (!draggingRef.current) return;
+      if (pointerIdRef.current !== null && event.pointerId !== pointerIdRef.current) {
+        return;
+      }
+      draggingRef.current = false;
+      pointerIdRef.current = null;
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      window.removeEventListener('pointermove', handleGlobalPointerMove);
+      window.removeEventListener('pointerup', handleGlobalPointerUp);
+      window.removeEventListener('pointercancel', handleGlobalPointerUp);
+      setIsDragging(false);
+      const meta = dragMeta.current;
+      if (meta.moved) {
+        moveMascot(
+          {
+            x: event.clientX - meta.offsetX,
+            y: event.clientY - meta.offsetY,
+          },
+          true,
+        );
+        requestAnimationFrame(() => {
+          skipClickRef.current = false;
+        });
+      } else {
+        skipClickRef.current = false;
+      }
+      dragMeta.current = { startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false };
+    },
+    [handleGlobalPointerMove, moveMascot],
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    return () => {
+      window.removeEventListener('pointermove', handleGlobalPointerMove);
+      window.removeEventListener('pointerup', handleGlobalPointerUp);
+      window.removeEventListener('pointercancel', handleGlobalPointerUp);
+    };
+  }, [handleGlobalPointerMove, handleGlobalPointerUp]);
 
   // Helper to safely set mood with auto-reset
   const setTemporaryMood = (newMood: MascotMood, duration: number) => {
@@ -419,55 +492,23 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (typeof window === 'undefined') return;
+      if (event.cancelable) {
+        event.preventDefault();
+      }
       const meta = dragMeta.current;
       meta.startX = event.clientX;
       meta.startY = event.clientY;
       meta.offsetX = event.clientX - position.x;
       meta.offsetY = event.clientY - position.y;
       meta.moved = false;
-      setIsDragging(true);
       skipClickRef.current = false;
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-  };
-
-  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!isDragging) return;
-      const meta = dragMeta.current;
-      const rawPosition = {
-          x: event.clientX - meta.offsetX,
-          y: event.clientY - meta.offsetY,
-      };
-      const distance = Math.hypot(event.clientX - meta.startX, event.clientY - meta.startY);
-      if (!meta.moved) {
-          if (distance <= 4) {
-              return;
-          }
-          meta.moved = true;
-          skipClickRef.current = true;
-      }
-      moveMascot(rawPosition);
-  };
-
-  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!isDragging) return;
-      event.currentTarget.releasePointerCapture?.(event.pointerId);
-      setIsDragging(false);
-      const meta = dragMeta.current;
-      if (meta.moved) {
-          moveMascot(
-              {
-                  x: event.clientX - meta.offsetX,
-                  y: event.clientY - meta.offsetY,
-              },
-              true,
-          );
-          setTimeout(() => {
-              skipClickRef.current = false;
-          }, 0);
-      } else {
-          skipClickRef.current = false;
-      }
-      dragMeta.current = { startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false };
+      setIsDragging(true);
+      draggingRef.current = true;
+      pointerIdRef.current = event.pointerId;
+      window.addEventListener('pointermove', handleGlobalPointerMove);
+      window.addEventListener('pointerup', handleGlobalPointerUp);
+      window.addEventListener('pointercancel', handleGlobalPointerUp);
   };
   
   return (
@@ -476,9 +517,6 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
       ref={containerRef}
       style={{ left: `${position.x}px`, top: `${position.y}px` }}
       onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
     >
       {displayMessage && (
         <div className="mascot-bubble">
