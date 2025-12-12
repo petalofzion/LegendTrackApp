@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 
 type MascotMood = 'idle' | 'happy' | 'excited' | 'sleepy' | 'tickled' | 'bonked' | 'patted' | 'hugged';
 
@@ -112,6 +113,29 @@ const GIF_COLLECTIONS: Record<string, string[]> = {
   ]
 };
 
+type MascotPosition = { x: number; y: number };
+
+const MASCOT_STORAGE_KEY = 'legendtrack-mascot-position';
+const clampValue = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
+
+const isValidStoredPosition = (value: unknown): value is MascotPosition => {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.x === 'number' && typeof record.y === 'number';
+};
+
+function getInitialPosition(): MascotPosition {
+  if (typeof window === 'undefined') {
+    return { x: 24, y: 24 };
+  }
+  // Aim for bottom-right corner but leave breathing room near the edges.
+  return {
+    x: window.innerWidth - 200,
+    y: window.innerHeight - 220,
+  };
+}
+
 interface MascotProps {
   mood?: 'idle' | 'happy';
   customMessage?: string | null;
@@ -123,10 +147,53 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
   const [currentMessage, setCurrentMessage] = useState<string | null>(null);
   const [internalMood, setInternalMood] = useState<MascotMood>('idle');
   const [currentGifIndex, setCurrentGifIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const dragMeta = useRef({ startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false });
+  const skipClickRef = useRef(false);
+  const [position, setPosition] = useState<MascotPosition>(() => getInitialPosition());
+  const [isDragging, setIsDragging] = useState(false);
 
   // Refs to track active timers for cleanup
   const moodTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clampToViewport = useCallback(
+    (next: MascotPosition) => {
+      if (typeof window === 'undefined') {
+        return next;
+      }
+      const padding = 16;
+      const width = containerRef.current?.offsetWidth ?? 200;
+      const height = containerRef.current?.offsetHeight ?? 200;
+      const maxX = Math.max(padding, window.innerWidth - width - padding);
+      const maxY = Math.max(padding, window.innerHeight - height - padding);
+      return {
+        x: clampValue(next.x, padding, maxX),
+        y: clampValue(next.y, padding, maxY),
+      };
+    },
+    [],
+  );
+
+  const moveMascot = useCallback(
+    (raw: MascotPosition, persist = false) => {
+      setPosition((prev) => {
+        const clamped = clampToViewport(raw);
+        if (persist && typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(MASCOT_STORAGE_KEY, JSON.stringify(clamped));
+          } catch {
+            // Ignore quota/unavailable storage errors.
+          }
+        }
+        if (prev.x === clamped.x && prev.y === clamped.y) {
+          return prev;
+        }
+        return clamped;
+      });
+    },
+    [clampToViewport],
+  );
 
   // Helper to safely set mood with auto-reset
   const setTemporaryMood = (newMood: MascotMood, duration: number) => {
@@ -171,6 +238,33 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
           if (messageTimer.current) clearTimeout(messageTimer.current);
       };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let starting: MascotPosition | null = null;
+    try {
+      const stored = localStorage.getItem(MASCOT_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (isValidStoredPosition(parsed)) {
+          starting = parsed;
+        }
+      }
+    } catch {
+      starting = null;
+    }
+    const fallback = starting ?? getInitialPosition();
+    moveMascot(fallback);
+  }, [moveMascot]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => {
+      setPosition((prev) => clampToViewport(prev));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [clampToViewport]);
 
   // Sync prop mood to internal state but allow overrides
   useEffect(() => {
@@ -273,6 +367,10 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
 
   // Logic to pick reaction type on click
   const handleMascotClick = () => {
+      if (skipClickRef.current) {
+          skipClickRef.current = false;
+          return;
+      }
       // Special Interaction: Clicking while sleeping triggers a hug
       if (internalMood === 'sleepy') {
           if (zenMode) {
@@ -318,9 +416,70 @@ export function Mascot({ mood = 'idle', customMessage, triggerKey, zenMode = fal
       setTemporaryMood(reactionType, 2500);
       setTemporaryMessage(reactionText, 2500);
   };
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      const meta = dragMeta.current;
+      meta.startX = event.clientX;
+      meta.startY = event.clientY;
+      meta.offsetX = event.clientX - position.x;
+      meta.offsetY = event.clientY - position.y;
+      meta.moved = false;
+      setIsDragging(true);
+      skipClickRef.current = false;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!isDragging) return;
+      const meta = dragMeta.current;
+      const rawPosition = {
+          x: event.clientX - meta.offsetX,
+          y: event.clientY - meta.offsetY,
+      };
+      const distance = Math.hypot(event.clientX - meta.startX, event.clientY - meta.startY);
+      if (!meta.moved) {
+          if (distance <= 4) {
+              return;
+          }
+          meta.moved = true;
+          skipClickRef.current = true;
+      }
+      moveMascot(rawPosition);
+  };
+
+  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!isDragging) return;
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      setIsDragging(false);
+      const meta = dragMeta.current;
+      if (meta.moved) {
+          moveMascot(
+              {
+                  x: event.clientX - meta.offsetX,
+                  y: event.clientY - meta.offsetY,
+              },
+              true,
+          );
+          setTimeout(() => {
+              skipClickRef.current = false;
+          }, 0);
+      } else {
+          skipClickRef.current = false;
+      }
+      dragMeta.current = { startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false };
+  };
   
   return (
-    <div className="mascot-container">
+    <div
+      className={`mascot-container ${isDragging ? 'dragging' : ''}`}
+      ref={containerRef}
+      style={{ left: `${position.x}px`, top: `${position.y}px` }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+    >
       {displayMessage && (
         <div className="mascot-bubble">
           {displayMessage}
