@@ -70,6 +70,7 @@ export function TopicGraph({
   }, [expandedCluster]);
 
   const collapseTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleCollapseTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevExpandedCluster = useRef<string | null>(null);
   const pointerInsideCluster = useRef(false);
   const pointerPosition = useRef<{ x: number; y: number } | null>(null);
@@ -385,6 +386,40 @@ export function TopicGraph({
     }, collapseDelayMs);
   }, [collapseDelayMs, hoverGraceDistance]);
 
+  useEffect(() => {
+    if (idleCollapseTimeout.current) {
+      clearTimeout(idleCollapseTimeout.current);
+      idleCollapseTimeout.current = null;
+    }
+    if (!expandedCluster) return;
+
+    idleCollapseTimeout.current = setTimeout(() => {
+      idleCollapseTimeout.current = null;
+      const currentKey = expandedClusterRef.current;
+      const pointer = pointerPosition.current;
+      const centers = clusterCentersRef.current;
+      if (!currentKey || !pointer) return;
+      const meta = centers.get(currentKey);
+      if (!meta) return;
+      const dist = Math.hypot(
+        pointer.x - meta.centerX,
+        pointer.y - meta.centerY,
+      );
+      if (dist > meta.expandedRadius + hoverGraceDistance) {
+        pointerInsideCluster.current = false;
+        lastPointerCluster.current = null;
+        setExpandedCluster(null);
+      }
+    }, collapseDelayMs);
+
+    return () => {
+      if (idleCollapseTimeout.current) {
+        clearTimeout(idleCollapseTimeout.current);
+        idleCollapseTimeout.current = null;
+      }
+    };
+  }, [expandedCluster, collapseDelayMs, hoverGraceDistance]);
+
   const initialFitDone = useRef(false);
 
   useEffect(() => {
@@ -636,9 +671,10 @@ export function TopicGraph({
 
       // Check nodes
       cy.nodes().forEach((node) => {
-        const pos = node.position();
-        const dx = pointer.x - pos.x;
-        const dy = pointer.y - pos.y;
+        const baseX = Number(node.data('baseX'));
+        const baseY = Number(node.data('baseY'));
+        const dx = pointer.x - baseX;
+        const dy = pointer.y - baseY;
         const distance = Math.hypot(dx, dy);
         if (
           distance <= nodeActivationRadius &&

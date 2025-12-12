@@ -391,7 +391,6 @@
   padding: 2rem;
   box-shadow: 0 10px 40px rgba(122, 135, 165, 0.18);
   backdrop-filter: blur(10px);
-  transition: opacity 0.8s, transform 0.8s, max-height 0.8s, margin 0.8s, padding 0.8s;
 }
 
 .epoch-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem; }
@@ -473,7 +472,6 @@
   position: sticky;
   top: 0.5rem;
   align-self: start;
-  transition: opacity 0.8s, transform 0.8s, max-height 0.8s, margin 0.8s, padding 0.8s;
   z-index: 50; /* Ensure sidebar sits above graph nodes */
 }
 
@@ -516,7 +514,7 @@
 .panel-sparkles span { animation: sparklePulse 3.6s ease-in-out infinite; }
 
 .floating-charms {
-  margin: 2rem auto 0; width: min(560px, 90%); padding: 1rem 1.5rem; border-radius: 999px; background: rgba(255, 255, 255, 0.8); border: 2px solid rgba(255, 199, 236, 0.6); display: flex; align-items: center; justify-content: center; gap: 1.2rem; font-family: 'Fredoka', cursive; color: #d86fb0; letter-spacing: 0.08em; box-shadow: 0 12px 30px rgba(255, 183, 225, 0.35); font-size: 1.1rem; transition: opacity 0.8s, transform 0.8s, max-height 0.8s, margin 0.8s, padding 0.8s;
+  margin: 2rem auto 0; width: min(560px, 90%); padding: 1rem 1.5rem; border-radius: 999px; background: rgba(255, 255, 255, 0.8); border: 2px solid rgba(255, 199, 236, 0.6); display: flex; align-items: center; justify-content: center; gap: 1.2rem; font-family: 'Fredoka', cursive; color: #d86fb0; letter-spacing: 0.08em; box-shadow: 0 12px 30px rgba(255, 183, 225, 0.35); font-size: 1.1rem;
 }
 .floating-charms__gif { width: 80px; height: 80px; border-radius: 20px; border: 3px solid rgba(255, 255, 255, 0.9); object-fit: cover; box-shadow: 0 10px 22px rgba(173, 155, 220, 0.3); }
 
@@ -566,89 +564,47 @@
   color: #e3d0ff;
 }
 
-/* Zen Mode Transition - Choreographed & Gentle (Slower) */
-.app-header {
-    /* Exit Zen: Move header down (0s), then fade in (0.8s delay) */
-    transition: 
-        margin-top 2s cubic-bezier(0.4, 0.0, 0.2, 1), 
-        opacity 1.5s ease 0.8s;
-    margin-top: 0;
+/* Zen Mode Transition - Transform Only (Zero Layout Jumps) */
+.app-header,
+.controls-panel {
+    transition: transform 2s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 1.5s ease 0.5s;
+    transform: translateY(0);
     opacity: 1;
 }
 
 .projects-column, 
-.controls-panel, 
 .epoch, 
 .floating-charms {
-    /* Exit Zen: Expand layout (0s), then fade in (0.8s delay) */
-    transition: 
-        max-height 2s cubic-bezier(0.4, 0.0, 0.2, 1),
-        margin 2s cubic-bezier(0.4, 0.0, 0.2, 1),
-        padding 2s cubic-bezier(0.4, 0.0, 0.2, 1),
-        opacity 1.5s ease 0.8s;
+    transition: opacity 1.5s ease 0.5s;
     opacity: 1;
-    max-height: 4000px; 
-    overflow: visible; 
-}
-
-/* Fix Graph Flashing - Add Transition */
-.graph-section,
-.graph-wrapper {
-    transition: 
-        background-color 2s ease,
-        border-color 2s ease,
-        box-shadow 2s ease,
-        background-image 2s ease;
-}
-
-/* Fix UI Flashing - Add Transition to Small Elements */
-.legend-chip,
-.graph-controls button,
-.graph-lane-labels span {
-    transition: 
-        background-color 2s ease,
-        border-color 2s ease,
-        color 2s ease,
-        box-shadow 2s ease,
-        text-shadow 2s ease;
 }
 
 .content-layout {
-    transition: transform 1.5s ease;
+    transition: transform 2s cubic-bezier(0.4, 0.0, 0.2, 1);
     transform: translateY(0);
 }
 
-.zen-active .app-header {
-    /* Enter Zen: Fade out fast (0s), then slide up (0.5s delay) */
-    transition: 
-        opacity 0.8s ease,
-        margin-top 2s cubic-bezier(0.4, 0.0, 0.2, 1) 0.5s;
-    margin-top: -500px; 
+.zen-active .app-header,
+.zen-active .controls-panel {
+    /* Enter Zen: Fade out in place */
+    transition: opacity 0.8s ease;
+    transform: translateY(0); /* Stay put to hold layout */
     opacity: 0;
     pointer-events: none;
 }
 
 .zen-active .projects-column,
-.zen-active .controls-panel,
 .zen-active .epoch,
 .zen-active .floating-charms {
-    /* Enter Zen: Fade out fast (0s), then collapse (0.5s delay) */
-    transition: 
-        opacity 0.8s ease,
-        max-height 2s cubic-bezier(0.4, 0.0, 0.2, 1) 0.5s,
-        margin 2s cubic-bezier(0.4, 0.0, 0.2, 1) 0.5s,
-        padding 2s cubic-bezier(0.4, 0.0, 0.2, 1) 0.5s;
+    transition: opacity 0.8s ease;
     opacity: 0;
     pointer-events: none;
-    max-height: 0; 
-    margin: 0;
-    padding: 0;
-    overflow: hidden; 
 }
 
-.content-layout {
-    transition: transform 0.8s ease;
-    transform: translateY(0);
+/* Slide Graph Up to Cover Empty Header */
+.zen-active .content-layout {
+    transition: transform 2s cubic-bezier(0.4, 0.0, 0.2, 1) 0.5s; /* Delay movement */
+    transform: translateY(-350px); 
 }
 
 .zen-active .app-header {
