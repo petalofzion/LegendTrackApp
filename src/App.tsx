@@ -536,48 +536,48 @@ function App() {
 
       <div className="content-layout">
         <main>
+          <section className="graph-section">
+            <div className="graph-header">
+              <div>
+                <h2>Constellation Map</h2>
+                <p>Nodes placed by Pathway (X) and Chapter (Y). Click for details.</p>
+              </div>
+              {focusedTopic && <span>Focused: {focusedTopic}</span>}
+            </div>
+            <div className="depth-legend">
+              {(Object.keys(depthStateLabels) as DepthDeltaState[]).map((state) => (
+                <button
+                  key={state}
+                  type="button"
+                  className={`legend-chip ${state === 'under' ? 'need' : state} ${
+                    depthStateFilter === state ? 'active' : ''
+                  }`}
+                  onClick={() => toggleDepthFilter(state)}
+                >
+                  {depthStateLabels[state]}
+                </button>
+              ))}
+              <button
+                type="button"
+                className={`legend-chip reset ${depthStateFilter === 'All' ? 'active' : ''}`}
+                onClick={() => setDepthStateFilter('All')}
+              >
+                Clear
+              </button>
+            </div>
+            <TopicGraph
+                topics={filteredTopics}
+                highlightedIds={highlightedIds}
+                focusedTopicId={focusedTopic}
+                onSelectTopic={(id) => setFocusedTopic(id)}
+                searchTerm={searchTerm}
+              />
+          </section>
+
           {filteredTopics.length === 0 ? (
             <EmptyState />
           ) : (
             <>
-              <section className="graph-section">
-                <div className="graph-header">
-                  <div>
-                    <h2>Constellation Map</h2>
-                    <p>Nodes placed by Pathway (X) and Chapter (Y). Click for details.</p>
-                  </div>
-                  {focusedTopic && <span>Focused: {focusedTopic}</span>}
-                </div>
-                <div className="depth-legend">
-                  {(Object.keys(depthStateLabels) as DepthDeltaState[]).map((state) => (
-                    <button
-                      key={state}
-                      type="button"
-                      className={`legend-chip ${state === 'under' ? 'need' : state} ${
-                        depthStateFilter === state ? 'active' : ''
-                      }`}
-                      onClick={() => toggleDepthFilter(state)}
-                    >
-                      {depthStateLabels[state]}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    className={`legend-chip reset ${depthStateFilter === 'All' ? 'active' : ''}`}
-                    onClick={() => setDepthStateFilter('All')}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <TopicGraph
-                    topics={filteredTopics}
-                    highlightedIds={highlightedIds}
-                    focusedTopicId={focusedTopic}
-                    onSelectTopic={(id) => setFocusedTopic(id)}
-                    searchTerm={searchTerm}
-                  />
-              </section>
-
               {groupedByEpoch.map((epoch) => (
                 <section className="epoch" key={epoch.epoch}>
                   <div className="epoch-heading">

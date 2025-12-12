@@ -508,19 +508,25 @@ export function TopicGraph({
             const extraSquish = 1.05; 
             targetX = meta.centerX + dx * pushFactor * extraSquish;
             targetY = meta.centerY + dy * pushFactor * extraSquish;
-        } else if (distance < safeZone + rippleFalloffZone) {
-            // Soft push: Nodes just outside get nudged so they don't bunch up against the hard-pushed ones
-            const proximity = 1 - ((distance - safeZone) / rippleFalloffZone);
-            const nudge = proximity * 60; // Max 60px nudge at the border
-            const scale = (distance + nudge) / distance;
-            targetX = meta.centerX + dx * scale;
-            targetY = meta.centerY + dy * scale;
-        }
+	        } else if (distance < safeZone + rippleFalloffZone) {
+	            // Soft push: Nodes just outside get nudged so they don't bunch up against the hard-pushed ones
+	            const proximity = 1 - ((distance - safeZone) / rippleFalloffZone);
+	            const nudge = proximity * 60; // Max 60px nudge at the border
+	            const scale = (distance + nudge) / distance;
+	            targetX = meta.centerX + dx * scale;
+	            targetY = meta.centerY + dy * scale;
+	        }
 
-        node.animate(
-          { position: { x: targetX, y: targetY } },
-          { duration: 300, easing: 'ease-in-out', queue: false },
-        );
+	        const pos = node.position();
+	        const deltaToTarget = Math.hypot(pos.x - targetX, pos.y - targetY);
+	        if (deltaToTarget < 0.9 && !node.animated()) {
+	          return;
+	        }
+
+	        node.animate(
+	          { position: { x: targetX, y: targetY } },
+	          { duration: 300, easing: 'ease-in-out', queue: false },
+	        );
       });
     };
 
@@ -835,7 +841,8 @@ export function TopicGraph({
           'shadow-offset-y': 3,
           'transition-property':
             'background-color border-width border-color shadow-color shadow-blur opacity',
-          'transition-duration': 200,
+          'transition-duration': 320,
+          'transition-timing-function': 'ease-in-out',
           'z-index-compare': 'manual',
           'z-index': 2,
           'animation-name': 'nodePulse',
