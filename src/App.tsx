@@ -252,7 +252,7 @@ function App() {
     return canonicalStatus(filters.status);
   }, [filters.status]);
 
-  const filteredTopics = useMemo(() => {
+  const plannerFilteredTopics = useMemo(() => {
     const rawTerm = searchTerm.trim().toLowerCase();
     return topics.filter((topic) => {
       const matchesTrack =
@@ -264,14 +264,12 @@ function App() {
       const matchesStatus =
         statusFilterValue === null ||
         canonicalStatus(topic.status) === statusFilterValue;
-      const matchesDepthState =
-        depthStateFilter === 'All' || depthMeta?.state === depthStateFilter;
       const matchesSearch =
         rawTerm.length === 0 ||
         (topic.id?.toLowerCase() ?? '').includes(rawTerm) ||
         (topic.topicName?.toLowerCase() ?? '').includes(rawTerm) ||
         (topic.description?.toLowerCase() ?? '').includes(rawTerm);
-      return matchesTrack && matchesStatus && matchesDepth && matchesDepthState && matchesSearch;
+      return matchesTrack && matchesStatus && matchesDepth && matchesSearch;
     });
   }, [
     topics,
@@ -279,9 +277,17 @@ function App() {
     depthFilterLevel,
     statusFilterValue,
     depthMetaById,
-    depthStateFilter,
     searchTerm,
   ]);
+
+  const finalFilteredTopics = useMemo(() => {
+    return plannerFilteredTopics.filter((topic) => {
+      const depthMeta = depthMetaById.get(topic.id);
+      const matchesDepthState =
+        depthStateFilter === 'All' || depthMeta?.state === depthStateFilter;
+      return matchesDepthState;
+    });
+  }, [plannerFilteredTopics, depthStateFilter, depthMetaById]);
 
   const highlightedIds = useMemo(() => {
     if (selectedProjectId === 'All') {
@@ -315,7 +321,7 @@ function App() {
 
   const groupedByEpoch = useMemo(() => {
     const groups = new Map<number, Topic[]>();
-    for (const topic of filteredTopics) {
+    for (const topic of finalFilteredTopics) {
       if (topic.epoch === null) continue;
       if (!groups.has(topic.epoch)) {
         groups.set(topic.epoch, []);
@@ -329,7 +335,7 @@ function App() {
         theme: epochTopics[0]?.epochTheme ?? '',
         topics: epochTopics.sort((a, b) => compareTopicIds(a.id, b.id)),
       }));
-  }, [filteredTopics]);
+  }, [finalFilteredTopics]);
 
   function badgeClass(status: string) {
     switch (status) {
@@ -525,7 +531,7 @@ function App() {
           </div>
           <div>
             <p className="summary-label">Visible</p>
-            <p className="summary-value">{filteredTopics.length}</p>
+            <p className="summary-value">{plannerFilteredTopics.length}</p>
           </div>
           <div>
             <p className="summary-label">Quests Logged</p>
@@ -536,50 +542,54 @@ function App() {
 
       <div className="content-layout">
         <main>
-          <section className="graph-section">
-            <div className="graph-header">
-              <div>
-                <h2>Constellation Map</h2>
-                <p>Nodes placed by Pathway (X) and Chapter (Y). Click for details.</p>
-              </div>
-              {focusedTopic && <span>Focused: {focusedTopic}</span>}
-            </div>
-            <div className="depth-legend">
-              {(Object.keys(depthStateLabels) as DepthDeltaState[]).map((state) => (
-                <button
-                  key={state}
-                  type="button"
-                  className={`legend-chip ${state === 'under' ? 'need' : state} ${
-                    depthStateFilter === state ? 'active' : ''
-                  }`}
-                  onClick={() => toggleDepthFilter(state)}
-                >
-                  {depthStateLabels[state]}
-                </button>
-              ))}
-              <button
-                type="button"
-                className={`legend-chip reset ${depthStateFilter === 'All' ? 'active' : ''}`}
-                onClick={() => setDepthStateFilter('All')}
-              >
-                Clear
-              </button>
-            </div>
-            <TopicGraph
-                topics={filteredTopics}
-                highlightedIds={highlightedIds}
-                focusedTopicId={focusedTopic}
-                onSelectTopic={(id) => setFocusedTopic(id)}
-                searchTerm={searchTerm}
-              />
-          </section>
-
-          {filteredTopics.length === 0 ? (
+          {plannerFilteredTopics.length === 0 ? (
             <EmptyState />
           ) : (
             <>
-              {groupedByEpoch.map((epoch) => (
-                <section className="epoch" key={epoch.epoch}>
+              <section className="graph-section">
+                <div className="graph-header">
+                  <div>
+                    <h2>Constellation Map</h2>
+                    <p>Nodes placed by Pathway (X) and Chapter (Y). Click for details.</p>
+                  </div>
+                  {focusedTopic && <span>Focused: {focusedTopic}</span>}
+                </div>
+                <div className="depth-legend">
+                  {(Object.keys(depthStateLabels) as DepthDeltaState[]).map((state) => (
+                    <button
+                      key={state}
+                      type="button"
+                      className={`legend-chip ${state === 'under' ? 'need' : state} ${
+                        depthStateFilter === state ? 'active' : ''
+                      }`}
+                      onClick={() => toggleDepthFilter(state)}
+                    >
+                      {depthStateLabels[state]}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className={`legend-chip reset ${depthStateFilter === 'All' ? 'active' : ''}`}
+                    onClick={() => setDepthStateFilter('All')}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <TopicGraph
+                    topics={finalFilteredTopics}
+                    highlightedIds={highlightedIds}
+                    focusedTopicId={focusedTopic}
+                    onSelectTopic={(id) => setFocusedTopic(id)}
+                    searchTerm={searchTerm}
+                  />
+              </section>
+
+              {finalFilteredTopics.length === 0 ? (
+                <EmptyState />
+              ) : (
+                <>
+                  {groupedByEpoch.map((epoch) => (
+                    <section className="epoch" key={epoch.epoch}>
                   <div className="epoch-heading">
                     <div>
                       <h2>
@@ -720,7 +730,9 @@ function App() {
               ))}
             </>
           )}
-        </main>
+        </>
+      )}
+    </main>
 
         <div className="projects-column">
           <aside className="projects-panel">

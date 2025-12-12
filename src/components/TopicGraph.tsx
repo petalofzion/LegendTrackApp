@@ -77,6 +77,7 @@ export function TopicGraph({
   const lastPointerCluster = useRef<string | null>(null);
   const pointerMoveRaf = useRef<number | null>(null);
   const pendingPointerEvent = useRef<MouseEvent | null>(null);
+  const reconcileRaf = useRef<number | null>(null);
   const laneTracks = useMemo(() => {
     const order = Array.from(
       new Set(
@@ -110,7 +111,7 @@ export function TopicGraph({
   const rippleFalloff = 1.4;
   const hoverGraceDistance = 12;
   const nodeActivationRadius = 36;
-  const collapseDelayMs = 120;
+  const collapseDelayMs = 180;
   const maxEpoch = useMemo(
     () =>
       topics.reduce((max, topic) => {
@@ -453,6 +454,23 @@ export function TopicGraph({
         .removeClass('neighbor-repelled');
     };
 
+    const cleanupReconcileFade = () => {
+      if (reconcileRaf.current != null) {
+        cancelAnimationFrame(reconcileRaf.current);
+        reconcileRaf.current = null;
+      }
+    };
+
+    const scheduleReconcileFade = (key: string | null) => {
+      if (reconcileRaf.current != null) {
+        cancelAnimationFrame(reconcileRaf.current);
+      }
+      reconcileRaf.current = requestAnimationFrame(() => {
+        reconcileRaf.current = null;
+        reconcileNeighborFade(key);
+      });
+    };
+
     const applyRipple = (
       key: string,
       expand: boolean,
@@ -635,14 +653,14 @@ export function TopicGraph({
         }
 
         prevExpandedCluster.current = expandedCluster;
-        reconcileNeighborFade(expandedCluster);
-        return;
+        scheduleReconcileFade(expandedCluster);
+        return cleanupReconcileFade;
       }
 
       animateCluster(previous, false, false);
       prevExpandedCluster.current = expandedCluster;
-      reconcileNeighborFade(null);
-      return;
+      scheduleReconcileFade(null);
+      return cleanupReconcileFade;
     }
 
     if (expandedCluster) {
@@ -650,7 +668,9 @@ export function TopicGraph({
     }
 
     prevExpandedCluster.current = expandedCluster;
-    reconcileNeighborFade(expandedCluster);
+    scheduleReconcileFade(expandedCluster);
+
+    return cleanupReconcileFade;
   }, [
     expandedCluster,
     elements,
