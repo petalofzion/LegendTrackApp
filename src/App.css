@@ -4,6 +4,13 @@
    1. APP SHELL & LAYOUT
    ========================================= */
 
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Hide window scrollbar, let .app scroll */
+}
+
 #root {
   display: flex;
   flex-direction: column;
@@ -13,8 +20,8 @@
 
 .app {
   height: 100%;
-  min-height: 100vh; /* Safeguard */
-  overflow-y: auto;
+  /* Restore overflow-y: auto to .app for Zen Mode styles */
+  overflow-y: auto; 
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
@@ -898,9 +905,83 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
   transform: translate3d(0, 0, 0) scale(1);
 }
 
-/* Toggles & Misc */
-.zen-toggle { position: fixed; bottom: 2rem; left: 2rem; z-index: 1000; background: white; border: 2px solid #ff9fdc; border-radius: 50%; width: 60px; height: 60px; font-size: 1.5rem; cursor: pointer; box-shadow: 0 5px 20px rgba(240, 110, 169, 0.4); transition: transform 0.2s; display: grid; place-items: center; }
-.zen-toggle:hover { transform: scale(1.1) rotate(10deg); }
+/* =========================================
+   11. ACTION MENU (FAB)
+   ========================================= */
+
+.action-menu {
+  position: fixed;
+  bottom: 2rem;
+  left: 2rem;
+  z-index: 1000;
+  width: 60px;
+  height: 60px; /* Base size */
+}
+
+/* The buttons */
+.action-button {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid #ff9fdc;
+  background: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  box-shadow: 0 5px 20px rgba(240, 110, 169, 0.4);
+  display: grid;
+  place-items: center;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  outline: none;
+}
+
+.action-button:hover {
+  transform: scale(1.1) rotate(10deg);
+  z-index: 10;
+}
+
+/* Main Button (Zen) */
+.zen-button {
+  z-index: 5;
+}
+
+/* Secondary Button (File) */
+.file-button {
+  z-index: 1;
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+/* Hover State for Container */
+.action-menu:hover {
+  /* Expand the hit area upwards so we don't lose hover when moving to the file button */
+  height: 150px; 
+}
+
+.action-menu:hover .file-button {
+  opacity: 1;
+  transform: translateY(-80px) scale(1); /* Pop up */
+  box-shadow: 0 8px 25px rgba(100, 100, 200, 0.25);
+  border-color: #b0d7ff;
+}
+
+.action-menu:hover .file-button:hover {
+  transform: translateY(-80px) scale(1.1) rotate(-10deg);
+  background: #f0f8ff;
+}
+
+/* Zen Mode Adjustments for the Menu */
+.zen-active .action-button {
+  border-color: rgba(140, 100, 180, 0.5);
+  background: rgba(50, 35, 70, 0.8);
+  color: #f0d0ff;
+}
+.zen-active .action-button:hover {
+    background: rgba(70, 50, 90, 0.9);
+    border-color: #ff9fdc;
+}
 .mobile-list-toggle { display: none; }
 .empty-state { text-align: center; padding: 3rem; background: rgba(255,255,255,0.8); border-radius: 30px; margin-top: 2rem; border: 3px dashed #ff9fdc; }
 .empty-state-img { width: 150px; height: 150px; object-fit: contain; margin-bottom: 1rem; }

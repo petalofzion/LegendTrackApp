@@ -14,6 +14,9 @@ import { ClickSparkles } from './components/ClickSparkles';
 import { ProgressBar } from './components/ProgressBar';
 import { EmptyState } from './components/EmptyState';
 import { triggerConfetti } from './utils/confetti';
+import { loadData, updateTopic, selectTrackerFile, getTrackerPath, startWatching, stopWatching, type TopicUpdatePayload } from './services/tracker';
+import { ActionMenu } from './components/ActionMenu';
+import { useKineticScroll } from './hooks/useKineticScroll';
 
 type FilterState = {
   track: string;
@@ -85,10 +88,6 @@ function TrinityBadge({ label, value }: { label: string; value: string }) {
   );
 }
 
-type TopicUpdatePayload = Partial<
-  Pick<Topic, 'depthTarget' | 'currentDepth' | 'status'>
->;
-
 function App() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -105,11 +104,72 @@ function App() {
   const [zenMode, setZenMode] = useState(false);
   const [updatingTopics, setUpdatingTopics] = useState<Set<string>>(new Set());
   const [raveMode, setRaveMode] = useState(false);
+  const [isTauri, setIsTauri] = useState(false);
+  const [trackerPath, setTrackerPath] = useState<string | null>(null);
+
   const prevMasteredCount = useRef(0);
   const bubblesRef = useRef<HTMLDivElement>(null);
+  const appRef = useRef<HTMLDivElement>(null); // New Ref for the scroll container
   const inputSequence = useRef<string[]>([]);
   const apiBase =
     import.meta.env.VITE_API_BASE ?? 'http://localhost:4179';
+
+  useKineticScroll(appRef); // Pass the ref
+
+  const fetchData = useCallback(async () => {
+    try {
+      const { topics: topicsData, projects: projectsData } = await loadData();
+      setTopics(topicsData);
+      const normalizedProjects = projectsData.map((project) => ({
+        ...project,
+        id: project.id || project.title,
+      }));
+      setProjects(normalizedProjects);
+    } catch (err) {
+      console.error('Failed to load roadmap data', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Check if running in Tauri
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      setIsTauri(true);
+      getTrackerPath().then((path) => {
+        setTrackerPath(path);
+        if (path) {
+          fetchData();
+          // Start watching for external changes
+          startWatching(() => {
+             console.log('External change detected, reloading...');
+             fetchData();
+          });
+        }
+      });
+    } else {
+      // Web mode
+      fetchData();
+    }
+    return () => {
+      stopWatching();
+    };
+  }, [fetchData]);
+
+  async function handleSelectFile() {
+    try {
+      const path = await selectTrackerFile();
+      if (path) {
+        setTrackerPath(path);
+        fetchData();
+        // Restart watcher with new path
+        startWatching(() => {
+           console.log('External change detected, reloading...');
+           fetchData();
+        });
+      }
+    } catch (err) {
+      console.error('Failed to select file', err);
+    }
+  }
 
   async function persistTopicChanges(topicId: string, payload: TopicUpdatePayload) {
     setUpdatingTopics((prev) => {
@@ -118,15 +178,8 @@ function App() {
       return next;
     });
     try {
-      const response = await fetch(`${apiBase}/api/topics/${topicId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.error || 'Failed to update topic.');
-      }
+      await updateTopic(topicId, payload);
+      
       setTopics((prev) =>
         prev.map((topic) =>
           topic.id === topicId ? { ...topic, ...payload } : topic,
@@ -135,7 +188,7 @@ function App() {
     } catch (err) {
       console.error(err);
       alert(
-        `Could not update ${topicId}. Make sure npm run api is running.\n${(err as Error).message}`,
+        `Could not update ${topicId}.\n${(err as Error).message}`,
       );
     } finally {
       setUpdatingTopics((prev) => {
@@ -181,36 +234,10 @@ function App() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [topicsRes, projectsRes] = await Promise.all([
-        fetch(`${apiBase}/api/topics`),
-        fetch(`${apiBase}/api/projects`),
-      ]);
-      if (!topicsRes.ok || !projectsRes.ok) {
-        throw new Error('Failed to load roadmap data');
-      }
-      const [topicsJson, projectsJson] = await Promise.all([
-        topicsRes.json(),
-        projectsRes.json(),
-      ]);
-      setTopics(topicsJson as Topic[]);
-      const normalizedProjects = (projectsJson as Project[]).map((project) => ({
-        ...project,
-        id: project.id || project.title,
-      }));
-      setProjects(normalizedProjects);
-    } catch (err) {
-      console.error('Failed to load roadmap data', err);
-    }
-  }, [apiBase]);
-
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
+    // Only use SSE in web mode
+    if (isTauri || typeof window === 'undefined') return undefined;
+    
     let eventSource: EventSource | null = null;
     let reconnectTimer: number | null = null;
 
@@ -240,7 +267,7 @@ function App() {
         window.clearTimeout(reconnectTimer);
       }
     };
-  }, [apiBase, fetchData]);
+  }, [apiBase, fetchData, isTauri]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -431,8 +458,22 @@ function App() {
     return topics.find((t) => t.id === focusedTopic) || null;
   }, [topics, focusedTopic]);
 
+  if (isTauri && !trackerPath) {
+    return (
+      <div className="app">
+        <header className="app-header" style={{ flexDirection: 'column', gap: '2rem', justifyContent: 'center', height: '100%' }}>
+           <h1>Welcome to LegendTrack</h1>
+           <p>Please select your Tracker Excel file to begin.</p>
+           <button onClick={handleSelectFile} className="epoch-toggle" style={{ fontSize: '1.5rem', padding: '1rem 2rem' }}>
+             📂 Select Workbook
+           </button>
+        </header>
+      </div>
+    );
+  }
+
   return (
-    <div className={`app ${zenMode ? 'zen-active' : ''} ${raveMode ? 'rave-active' : ''}`}>
+    <div ref={appRef} className={`app ${zenMode ? 'zen-active' : ''} ${raveMode ? 'rave-active' : ''}`}>
       <ClickSparkles />
       <Mascot 
         mood={focusedTopic ? 'happy' : 'idle'} 
@@ -440,13 +481,13 @@ function App() {
         zenMode={zenMode} 
         focusedTopic={focusedTopicObj}
       />
-      <button 
-        className="zen-toggle" 
-        onClick={() => setZenMode(!zenMode)}
-        title="Toggle Zen Mode"
-      >
-        {zenMode ? '🌸' : '🧘‍♀️'}
-      </button>
+      
+      <ActionMenu 
+        zenMode={zenMode} 
+        toggleZenMode={() => setZenMode(!zenMode)} 
+        isTauri={isTauri} 
+        onSelectFile={handleSelectFile} 
+      />
 
       <div className="zen-backdrop" aria-hidden="true" />
       <div ref={bubblesRef} className="background-bubbles" aria-hidden="true" />
@@ -572,7 +613,7 @@ function App() {
                     <button
                       key={state}
                       type="button"
-                      className={`legend-chip ${state === 'under' ? 'need' : state} ${
+                      className={`legend-chip ${state === 'under' ? 'need' : state} ${ 
                         depthStateFilter === state ? 'active' : ''
                       }`}
                       onClick={() => toggleDepthFilter(state)}
@@ -627,7 +668,7 @@ function App() {
                         <div className="topic-grid">
                           {epoch.topics.map((topic) => (
                             <article
-                              className={`topic-card ${isHighlighted(topic.id) ? 'highlighted' : ''} ${
+                              className={`topic-card ${isHighlighted(topic.id) ? 'highlighted' : ''} ${ 
                                 focusedTopic === topic.id ? 'focused' : ''
                               }`}
                               key={topic.id}
@@ -783,7 +824,7 @@ function App() {
               {projects.map((project) => (
                 <button
                   key={project.id}
-                  className={`project-pill ${
+                  className={`project-pill ${ 
                     selectedProjectId === project.id ? 'active' : ''
                   }`}
                   onClick={() => setSelectedProjectId(project.id)}
