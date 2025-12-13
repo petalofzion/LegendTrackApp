@@ -1,21 +1,79 @@
 <script lang="ts">
   import { showApiKeyModal } from '../stores';
   import { triggerConfetti } from '../utils/confetti';
-  import { fade, scale } from 'svelte/transition';
+  import { fade, scale, slide } from 'svelte/transition';
+  import CuteSelect from './CuteSelect.svelte';
 
   let apiKey = $state('');
+  let model = $state('');
+  let customModelInput = $state('');
+  let showTuning = $state(false);
 
-  // Load existing key on mount
+  // Constants
+  const OPENAI_MODELS = ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
+  const ANTHROPIC_MODELS = ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'];
+  const ALL_DEFAULTS = new Set([...OPENAI_MODELS, ...ANTHROPIC_MODELS]);
+
+  // Derived State
+  let detectedProvider = $derived.by(() => {
+    if (apiKey.startsWith('sk-ant')) return 'Anthropic';
+    if (apiKey.startsWith('sk-')) return 'OpenAI';
+    return 'Unknown';
+  });
+
+  let modelOptions = $derived.by(() => {
+    let base = [];
+    if (detectedProvider === 'Anthropic') base = ANTHROPIC_MODELS;
+    else if (detectedProvider === 'OpenAI') base = OPENAI_MODELS;
+    else base = [...OPENAI_MODELS, ...ANTHROPIC_MODELS]; // Show all if unknown
+
+    return [...base, 'Custom...'];
+  });
+
+  // Load existing data
   if (typeof localStorage !== 'undefined') {
     apiKey = localStorage.getItem('legendtrack_api_key') || '';
+    const storedModel = localStorage.getItem('legendtrack_api_model');
+    
+    if (storedModel) {
+        if (ALL_DEFAULTS.has(storedModel)) {
+            model = storedModel;
+        } else {
+            model = 'Custom...';
+            customModelInput = storedModel;
+            showTuning = true; // Auto-open if custom
+        }
+    } else {
+        // Default to Gold Standards if nothing saved
+        model = 'gpt-4o'; // Just a visual default, detection overrides if key changes
+    }
   }
+
+  // Auto-switch visual default if provider changes and current model mismatches
+  $effect(() => {
+      if (detectedProvider === 'Anthropic' && model.startsWith('gpt')) {
+          model = ANTHROPIC_MODELS[0];
+      }
+      if (detectedProvider === 'OpenAI' && model.startsWith('claude')) {
+          model = OPENAI_MODELS[0];
+      }
+  });
 
   function save() {
     if (apiKey.trim()) {
       localStorage.setItem('legendtrack_api_key', apiKey.trim());
+      
+      const finalModel = model === 'Custom...' ? customModelInput.trim() : model;
+      if (finalModel) {
+          localStorage.setItem('legendtrack_api_model', finalModel);
+      } else {
+          localStorage.removeItem('legendtrack_api_model');
+      }
+
       triggerConfetti();
     } else {
       localStorage.removeItem('legendtrack_api_key');
+      localStorage.removeItem('legendtrack_api_model');
     }
     $showApiKeyModal = false;
   }
@@ -43,17 +101,44 @@
       
       <p class="modal-desc">
         To awaken the spirit in the machine, whisper your secret API key here...
-        <br>
-        <span class="sub-text">(OpenAI or Anthropic keys accepted!)</span>
       </p>
 
-      <input 
-        type="password" 
-        bind:value={apiKey} 
-        placeholder="sk-..." 
-        class="cute-input"
-        onkeydown={(e) => e.key === 'Enter' && save()}
-      />
+      <div class="input-group">
+        <input 
+          type="password" 
+          bind:value={apiKey} 
+          placeholder="sk-..." 
+          class="cute-input"
+          onkeydown={(e) => e.key === 'Enter' && save()}
+        />
+        {#if detectedProvider !== 'Unknown'}
+            <span class="provider-badge" transition:fade>{detectedProvider}</span>
+        {/if}
+      </div>
+
+      <button class="tuning-toggle" onclick={() => showTuning = !showTuning}>
+        {showTuning ? 'Hide Tuning' : 'Tune Spirit? 🔮'}
+      </button>
+
+      {#if showTuning}
+        <div class="tuning-panel" transition:slide={{ duration: 200 }}>
+            <label>Spirit Model</label>
+            <CuteSelect 
+                value={model} 
+                options={modelOptions} 
+                onChange={(v) => model = v} 
+            />
+            
+            {#if model === 'Custom...'}
+                <input 
+                    type="text" 
+                    bind:value={customModelInput} 
+                    placeholder="e.g. gpt-4-turbo-preview" 
+                    class="cute-input custom-model"
+                />
+            {/if}
+        </div>
+      {/if}
 
       <div class="modal-actions">
         <button class="cute-btn cancel" onclick={close}>Nevermind...</button>
@@ -86,6 +171,8 @@
     border: 3px solid #ffcae6;
     text-align: center;
     animation: floaty 6s ease-in-out infinite alternate;
+    max-height: 90vh;
+    overflow-y: auto;
   }
 
   .modal-header {
@@ -127,15 +214,29 @@
     font-weight: 600;
   }
 
-  .sub-text {
-    font-size: 0.85rem;
-    opacity: 0.8;
-    font-style: italic;
+  .input-group {
+      position: relative;
+      margin-bottom: 1rem;
+  }
+
+  .provider-badge {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: #f3e5f5;
+      color: #8e24aa;
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      pointer-events: none;
+      border: 1px solid #d1c4e9;
   }
 
   .cute-input {
     width: 100%;
-    box-sizing: border-box; /* Fix spill */
+    box-sizing: border-box;
     padding: 0.8rem 1.2rem;
     border-radius: 999px;
     border: 3px solid #ffdef0;
@@ -146,7 +247,6 @@
     outline: none;
     transition: all 0.2s;
     box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
-    margin-bottom: 2rem;
   }
 
   .cute-input:focus {
@@ -155,10 +255,48 @@
     transform: scale(1.02);
   }
 
+  .tuning-toggle {
+      background: none;
+      border: none;
+      color: #9fa0b5;
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-bottom: 1rem;
+      font-weight: 600;
+  }
+  .tuning-toggle:hover { color: #f06ea9; }
+
+  .tuning-panel {
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 20px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      border: 2px dashed #f06ea9;
+      text-align: left;
+  }
+
+  .tuning-panel label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.85rem;
+      color: #8c7ba3;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+  }
+
+  .custom-model {
+      margin-top: 0.8rem;
+      font-size: 0.9rem;
+      padding: 0.6rem 1rem;
+  }
+
   .modal-actions {
     display: flex;
     gap: 1rem;
     justify-content: center;
+    margin-top: 1rem;
   }
 
   .cute-btn {

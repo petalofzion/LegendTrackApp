@@ -325,7 +325,8 @@
     try {
         const context = serializeContext();
         const response = await ai.chat(question, context);
-        chatHistory = [...chatHistory, { role: 'ai', text: response.text }];
+        const usedModel = typeof localStorage !== 'undefined' ? (localStorage.getItem('legendtrack_api_model') || 'Default') : 'Unknown';
+        chatHistory = [...chatHistory, { role: 'ai', text: `[Debug Model: ${usedModel}]\n${response.text}` }];
         setTemporaryMood('happy', 4000);
     } catch (e) {
         chatHistory = [...chatHistory, { role: 'ai', text: "My connection to the Aether is broken!\nPlease check your API Key spell... ( ◡_◡ )" }];
