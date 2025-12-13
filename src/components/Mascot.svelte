@@ -134,8 +134,18 @@
       'https://media.tenor.com/zxe5TogaDzMAAAAi/hug-anime-hug.gif',
     ],
     thinking: [
-        'https://media.tenor.com/M6q2oV1hD-sAAAAi/loading.gif',
-        'https://media.tenor.com/RvCdcZ_XlQAAAAAi/anime-thinking.gif',
+        'https://media.tenor.com/y6y8r0hpdGQAAAAi/think-anime.gif',
+        'https://media.tenor.com/ZRTaqHTO8b0AAAAi/anime-anime-stickers.gif',
+        'https://media.tenor.com/NY6cMipSI1oAAAAi/fate-saber.gif',
+        'https://media.tenor.com/3-Yzl8lDpsIAAAAi/duvida.gif',
+        'https://media.tenor.com/IuNjq9wDbNcAAAAi/panic-ahhhhh.gif',
+    ],
+    zen_thinking: [
+        'https://media.tenor.com/ed-_zNQUcRMAAAAi/leevalentinevt-frogblink.gif',
+        'https://media.tenor.com/k2n6onrhYBIAAAAi/unjadedvtuber-jade.gif',
+        'https://media.tenor.com/7Hi6S4JbjAAAAAAi/mythikore-anime-girl.gif',
+        'https://media.tenor.com/16__F9595XMAAAAi/mythikore-anime-girl.gif',
+        'https://media.tenor.com/vD8SULEdULAAAAAi/shake-emote.gif',
     ]
   };
 
@@ -202,6 +212,7 @@
       if (internalMood === 'idle') key = 'zen_idle';
       if (internalMood === 'happy') key = 'zen_happy';
       if (internalMood === 'sleepy') key = 'zen_sleepy';
+      if (internalMood === 'thinking') key = 'zen_thinking';
     }
     return key;
   });

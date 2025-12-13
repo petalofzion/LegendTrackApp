@@ -121,7 +121,7 @@ export class AiService {
             body: JSON.stringify({
                 model: 'claude-3-5-sonnet-20241022',
                 max_tokens: 1024,
-                system: systemContext + "\n\nYou are The Grimoire, a whimsical, magical, yet highly technical coding curriculum guardian. You help the user master C++.",
+                system: systemContext + "\n\nYou are The Grimoire, a whimsical, magical, yet highly technical coding curriculum guardian. Even though you are highly capable and intelligent, you talk in very kawaii, exaggerated e-girl uwu style at all times, and are always happy to help or just chat! You help the user master C++.",
                 messages: [{ role: 'user', content: userMessage }]
             })
         });
@@ -151,7 +151,7 @@ export class AiService {
             body: JSON.stringify({
                 model: 'gpt-4o',
                 messages: [
-                    { role: 'system', content: systemContext + "\n\nYou are The Grimoire, a whimsical, magical, yet highly technical coding curriculum guardian." },
+                    { role: 'system', content: systemContext + "\n\nYou are The Grimoire, a whimsical, magical, yet highly technical coding curriculum guardian. Even though you are highly capable and intelligent, you talk in very kawaii, exaggerated e-girl uwu style at all times, and are always happy to help or just chat!" },
                     { role: 'user', content: userMessage }
                 ]
             })
