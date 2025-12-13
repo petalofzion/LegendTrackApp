@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import type { Topic } from '../types';
+  import { serializeContext, ai } from '../services/ai';
 
-  type MascotMood = 'idle' | 'happy' | 'excited' | 'sleepy' | 'tickled' | 'bonked' | 'patted' | 'hugged';
+  type MascotMood = 'idle' | 'happy' | 'excited' | 'sleepy' | 'tickled' | 'bonked' | 'patted' | 'hugged' | 'thinking';
   type MascotPosition = { x: number; y: number };
 
   interface Props {
@@ -11,6 +12,8 @@
     triggerKey?: string | null;
     zenMode?: boolean;
     focusedTopic?: Topic | null;
+    toggleZenMode?: () => void;
+    onClearFocus?: () => void;
   }
 
   let { 
@@ -18,7 +21,9 @@
     customMessage = null, 
     triggerKey = null, 
     zenMode = false, 
-    focusedTopic = null 
+    focusedTopic = null,
+    toggleZenMode,
+    onClearFocus
   }: Props = $props();
 
   const MESSAGES = [
@@ -127,6 +132,10 @@
     ],
     hugged: [
       'https://media.tenor.com/zxe5TogaDzMAAAAi/hug-anime-hug.gif',
+    ],
+    thinking: [
+        'https://media.tenor.com/M6q2oV1hD-sAAAAi/loading.gif',
+        'https://media.tenor.com/RvCdcZ_XlQAAAAAi/anime-thinking.gif',
     ]
   };
 
@@ -157,8 +166,16 @@
   let displayBubble = $state(false);
   let position = $state<MascotPosition>(getInitialPosition());
   let isDragging = $state(false);
+  
+  // Chat State
+  let chatOpen = $state(false);
+  let userQuery = $state('');
+  let isThinking = $state(false);
+  let chatHistory = $state<Array<{role: 'user' | 'ai', text: string}>>([]);
 
   let containerRef: HTMLDivElement;
+  let chatHistoryRef = $state<HTMLDivElement>(); // Ref for scrolling logic
+
   let bubbleTimer: ReturnType<typeof setTimeout> | null = null;
   let messageTimer: ReturnType<typeof setTimeout> | null = null;
   let moodTimer: ReturnType<typeof setTimeout> | null = null;
@@ -285,8 +302,31 @@
     scheduleBubbleHide(duration);
   }
 
+  async function handleChatSubmit() {
+    if (!userQuery.trim()) return;
+    
+    isThinking = true;
+    setMood('thinking');
+    const question = userQuery;
+    chatHistory = [...chatHistory, { role: 'user', text: question }];
+    userQuery = ''; // Clear input immediately
+    
+    try {
+        const context = serializeContext();
+        const response = await ai.chat(question, context);
+        chatHistory = [...chatHistory, { role: 'ai', text: response.text }];
+        setTemporaryMood('happy', 4000);
+    } catch (e) {
+        chatHistory = [...chatHistory, { role: 'ai', text: "My crystal ball is foggy... (Error)" }];
+        setTemporaryMood('sleepy', 3000);
+    } finally {
+        isThinking = false;
+    }
+  }
+
   // --- Drag Handling ---
   function handlePointerDown(event: PointerEvent) {
+    if ((event.target as HTMLElement).closest('.mascot-chat-bubble')) return; // Ignore chat bubble
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (event.cancelable) event.preventDefault();
 
@@ -351,12 +391,40 @@
     dragMeta = { startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false };
   }
 
-  function handleMascotClick() {
+  function handleMascotClick(event: MouseEvent) {
     if (skipClick) {
       skipClick = false;
       return;
     }
 
+    if ((event.target as HTMLElement).closest('.mascot-chat-bubble')) return; // Ignore click inside chat
+
+    // Modifier keys
+    if (event.shiftKey && toggleZenMode) {
+        toggleZenMode();
+        return;
+    }
+
+    // Always trigger interaction (Bonk/Tickle) to keep it alive
+    triggerInteraction();
+
+    // Toggle Chat visibility
+    const nextState = !chatOpen;
+    chatOpen = nextState;
+    
+    if (nextState) {
+        // If opening chat, clear any focused topic (Exclusive mode)
+        if (onClearFocus) onClearFocus();
+        
+        // Focus input
+        setTimeout(() => {
+            const el = containerRef?.querySelector('textarea');
+            el?.focus();
+        }, 50);
+    }
+  }
+
+  function triggerInteraction() {
     if (internalMood === 'sleepy') {
       if (zenMode) {
         setTemporaryMessage("Purrr... zzz... 💕", 2500);
@@ -428,21 +496,41 @@
     };
   });
 
-  // Topic Explanation
+  // Topic Explanation Effect
   $effect(() => {
-    if (focusedTopic) {
-      setTemporaryMood('happy', 8000);
-      const desc = focusedTopic.description || "A mysterious topic with no description yet!";
-      const explanation = `✨ ${focusedTopic.topicName} ✨\n\n${desc}`;
-      topicExplanation = explanation;
-      
-      if (explanationTimer) clearTimeout(explanationTimer);
-      explanationTimer = setTimeout(() => {
+    if (!focusedTopic) {
         topicExplanation = null;
-        explanationTimer = null;
-      }, 12000);
-    } else {
+        return;
+    }
+
+    // If chat is open, suppress the description bubble but keep highlighting in graph (handled by parent)
+    if (chatOpen) {
+        topicExplanation = null;
+        return;
+    }
+
+    // Normal behavior: Show description
+    setTemporaryMood('happy', 8000);
+    const desc = focusedTopic.description || "A mysterious topic with no description yet!";
+    const explanation = `✨ ${focusedTopic.topicName} ✨\n\n${desc}`;
+    topicExplanation = explanation;
+    
+    if (explanationTimer) clearTimeout(explanationTimer);
+    explanationTimer = setTimeout(() => {
       topicExplanation = null;
+      explanationTimer = null;
+    }, 12000);
+  });
+  
+  // Auto-scroll effect
+  $effect(() => {
+    if (chatHistory.length || isThinking) {
+        // Wait for DOM update
+        setTimeout(() => {
+            if (chatHistoryRef) {
+                chatHistoryRef.scrollTop = chatHistoryRef.scrollHeight;
+            }
+        }, 0);
     }
   });
 
@@ -538,6 +626,38 @@
   
   <div class="mascot-desc-bubble" class:visible={!!topicExplanation}>
     {#if topicExplanation}<span>{topicExplanation}</span>{/if}
+  </div>
+
+  <div class="mascot-chat-bubble" class:visible={chatOpen}>
+     <div class="chat-header">
+        <span>Grimoire</span>
+        <button class="chat-close" onclick={(e) => { e.stopPropagation(); chatOpen = false; }}>×</button>
+     </div>
+     <div class="chat-history" bind:this={chatHistoryRef}>
+        {#each chatHistory as msg}
+           <div class="chat-row" class:user={msg.role === 'user'}>
+              <span class="chat-text">{msg.text}</span>
+           </div>
+        {/each}
+        {#if isThinking}
+           <div class="chat-row ai thinking">...writing...</div>
+        {/if}
+     </div>
+     <div class="chat-input-row">
+        <!-- svelte-ignore a11y_autofocus -->
+        <textarea 
+           bind:value={userQuery} 
+           placeholder="Ask..." 
+           rows="1"
+           onkeydown={(e) => {
+               if (e.key === 'Enter' && !e.shiftKey) {
+                   e.preventDefault();
+                   handleChatSubmit();
+               }
+           }}
+        ></textarea>
+        <button class="chat-send-btn" onclick={(e) => { e.stopPropagation(); handleChatSubmit(); }}>➤</button>
+     </div>
   </div>
 
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->

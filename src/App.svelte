@@ -319,6 +319,7 @@
       triggerKey={$focusedTopic} 
       zenMode={$zenMode} 
       focusedTopic={focusedTopicObj}
+      onClearFocus={() => $focusedTopic = null}
     />
     
     <ActionMenu 
