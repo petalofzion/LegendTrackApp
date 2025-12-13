@@ -126,7 +126,7 @@ function extractProjects(sheet: xlsx.WorkSheet): Project[] {
 
 // --- Service Logic ---
 
-const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+export const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 export async function getTrackerPath(): Promise<string | null> {
   if (!isTauri()) return null;
@@ -151,6 +151,22 @@ export async function selectTrackerFile(): Promise<string | null> {
     await message(`Error selecting file: ${err}`, { title: 'Error', kind: 'error' });
   }
   return null;
+}
+
+// Load from a File object (Browser/HTML5)
+export async function loadFromFile(file: File): Promise<{ topics: Topic[]; projects: Project[] }> {
+    const buffer = await file.arrayBuffer();
+    const workbook = xlsx.read(buffer, { type: 'array', cellDates: true });
+    
+    const topicsSheet = workbook.Sheets['Topics'];
+    const projectsSheet = workbook.Sheets['Projects & Experiments'];
+    
+    if (!topicsSheet) throw new Error('Sheet "Topics" not found.');
+    
+    const topics = extractTopics(topicsSheet);
+    const projects = projectsSheet ? extractProjects(projectsSheet) : [];
+    
+    return { topics, projects };
 }
 
 export async function loadData(): Promise<{ topics: Topic[]; projects: Project[] }> {

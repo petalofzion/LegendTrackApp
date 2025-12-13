@@ -60,12 +60,12 @@ export type AiConfig = {
   provider: 'ollama' | 'openai' | 'anthropic';
   model: string;
   baseUrl?: string;
-  apiKey?: string; // Optional for local
+  apiKey?: string;
 };
 
 const DEFAULT_CONFIG: AiConfig = {
-  provider: 'ollama',
-  model: 'llama3', // or mistral, etc.
+  provider: 'ollama', // Default, but auto-switches if key is found
+  model: 'llama3', 
   baseUrl: 'http://localhost:11434',
 };
 
@@ -79,11 +79,95 @@ export class AiService {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  async chat(userMessage: string, systemContext: string): Promise<AiResponse> {
-    if (this.config.provider === 'ollama') {
-      return this.chatOllama(userMessage, systemContext);
+  private getApiKey(): string | null {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('legendtrack_api_key');
     }
-    throw new Error(`Provider ${this.config.provider} not implemented yet.`);
+    return null;
+  }
+
+  async chat(userMessage: string, systemContext: string): Promise<AiResponse> {
+    const key = this.getApiKey();
+
+    if (!key) {
+      // No key? Fallback to Ollama or throw specific error for UI
+      // Logic: If user specifically clicked the chat, and no key, and ollama fails...
+      // For this specific request: "if i click on mascot to open ai chat... ONLY pop up if they have an api key"
+      // Actually, the UI handles the popup logic. Here we just throw if missing.
+      throw new Error("MISSING_API_KEY");
+    }
+
+    // Auto-detect provider
+    if (key.startsWith('sk-ant')) {
+        return this.chatAnthropic(key, userMessage, systemContext);
+    } else if (key.startsWith('sk-')) {
+        return this.chatOpenAI(key, userMessage, systemContext);
+    } else {
+        // Assume Ollama or unknown
+        return this.chatOllama(userMessage, systemContext);
+    }
+  }
+
+  private async chatAnthropic(key: string, userMessage: string, systemContext: string): Promise<AiResponse> {
+    try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'x-api-key': key,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+                'anthropic-dangerous-direct-browser-access': 'true' // Necessary for client-side
+            },
+            body: JSON.stringify({
+                model: 'claude-3-5-sonnet-20241022',
+                max_tokens: 1024,
+                system: systemContext + "\n\nYou are The Grimoire, a whimsical, magical, yet highly technical coding curriculum guardian. You help the user master C++.",
+                messages: [{ role: 'user', content: userMessage }]
+            })
+        });
+
+        if (!response.ok) {
+             const err = await response.text();
+             throw new Error(`Anthropic Error: ${err}`);
+        }
+
+        const data = await response.json();
+        return { text: data.content[0].text };
+
+    } catch (e) {
+        console.error(e);
+        throw new Error("API_ERROR");
+    }
+  }
+
+  private async chatOpenAI(key: string, userMessage: string, systemContext: string): Promise<AiResponse> {
+    try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${key}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'gpt-4o',
+                messages: [
+                    { role: 'system', content: systemContext + "\n\nYou are The Grimoire, a whimsical, magical, yet highly technical coding curriculum guardian." },
+                    { role: 'user', content: userMessage }
+                ]
+            })
+        });
+
+        if (!response.ok) {
+             throw new Error(`OpenAI Error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return { text: data.choices[0].message.content };
+
+    } catch (e) {
+        console.error(e);
+        throw new Error("API_ERROR");
+    }
   }
 
   private async chatOllama(userMessage: string, systemContext: string): Promise<AiResponse> {
@@ -97,8 +181,7 @@ export class AiService {
             { role: 'system', content: systemContext },
             { role: 'user', content: userMessage }
           ],
-          stream: false, // For now, simple non-streaming
-          // format: 'json' // If we want forced JSON for tools later
+          stream: false, 
         }),
       });
 
@@ -112,7 +195,8 @@ export class AiService {
       };
     } catch (err) {
       console.error('AI Service Error:', err);
-      return { text: "My crystal ball is foggy... (Is Ollama running?)" };
+      // If Ollama fails, we assume it's because the user hasn't set up anything
+      throw new Error("MISSING_API_KEY"); 
     }
   }
 }

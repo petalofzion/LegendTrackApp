@@ -408,6 +408,15 @@
     // Always trigger interaction (Bonk/Tickle) to keep it alive
     triggerInteraction();
 
+    // Check for API Key before opening chat
+    const hasKey = typeof localStorage !== 'undefined' && localStorage.getItem('legendtrack_api_key');
+    
+    if (!hasKey) {
+        setTemporaryMood('sleepy', 3000);
+        setTemporaryMessage("I need a magic key to open the Grimoire! 🔑\n(Check the gear menu)", 4000);
+        return;
+    }
+
     // Toggle Chat visibility
     const nextState = !chatOpen;
     chatOpen = nextState;
