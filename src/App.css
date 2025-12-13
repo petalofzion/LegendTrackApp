@@ -972,31 +972,36 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
 }
 
 /* Hover State for Container */
-.action-menu:hover {
+.action-menu:hover,
+.action-menu.interacting {
   /* Expand the hit area upwards so we don't lose hover when moving to the buttons */
   height: 220px; 
 }
 
-.action-menu:hover .file-button {
+.action-menu:hover .file-button,
+.action-menu.interacting .file-button {
   opacity: 1;
   transform: translateY(-80px) scale(1); /* Pop up level 1 */
   box-shadow: 0 8px 25px rgba(100, 100, 200, 0.25);
   border-color: #b0d7ff;
 }
 
-.action-menu:hover .api-button {
+.action-menu:hover .api-button,
+.action-menu.interacting .api-button {
   opacity: 1;
   transform: translateY(-150px) scale(1); /* Pop up level 2 */
   box-shadow: 0 8px 25px rgba(149, 117, 205, 0.35);
   transition-delay: 0.05s; /* Slight staggered delay */
 }
 
-.action-menu:hover .file-button:hover {
+.action-menu:hover .file-button:hover,
+.action-menu.interacting .file-button:hover {
   transform: translateY(-80px) scale(1.1) rotate(-10deg);
   background: #f0f8ff;
 }
 
-.action-menu:hover .api-button:hover {
+.action-menu:hover .api-button:hover,
+.action-menu.interacting .api-button:hover {
   transform: translateY(-150px) scale(1.1) rotate(10deg);
   background: #f3e5f5;
   border-color: #9575cd;

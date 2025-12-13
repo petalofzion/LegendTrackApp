@@ -12,6 +12,7 @@
 
   // Components
   import ActionMenu from './components/ActionMenu.svelte';
+  import ApiKeyModal from './components/ApiKeyModal.svelte'; // New Component
   import ClickSparkles from './components/ClickSparkles.svelte';
   import CuteSelect from './components/CuteSelect.svelte';
   import EmptyState from './components/EmptyState.svelte';
@@ -313,6 +314,7 @@
   </div>
 {:else}
   <div class="app" class:zen-active={$zenMode} class:rave-active={$raveMode} use:kineticScroll>
+    <ApiKeyModal />
     <ClickSparkles />
     <Mascot 
       mood={$focusedTopic ? 'happy' : 'idle'} 
@@ -485,6 +487,7 @@
                      {#each epoch.topics as topic (topic.id)}
                        {@const delta = renderDepthDelta(topic)}
                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                       <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
                        <article
                          class="topic-card"
                          class:highlighted={highlightedIds.has(topic.id)}

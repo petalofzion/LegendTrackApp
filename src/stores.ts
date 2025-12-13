@@ -17,6 +17,7 @@ export const zenMode = writable(false);
 export const raveMode = writable(false);
 export const isTauri = writable(false);
 export const trackerPath = writable<string | null>(null);
+export const showApiKeyModal = writable(false); // New Modal State
 
 // Filters & Selection
 export const filters = writable<FilterState>({

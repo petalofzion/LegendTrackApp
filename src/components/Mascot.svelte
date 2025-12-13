@@ -317,7 +317,7 @@
         chatHistory = [...chatHistory, { role: 'ai', text: response.text }];
         setTemporaryMood('happy', 4000);
     } catch (e) {
-        chatHistory = [...chatHistory, { role: 'ai', text: "My crystal ball is foggy... (Error)" }];
+        chatHistory = [...chatHistory, { role: 'ai', text: "My connection to the Aether is broken!\nPlease check your API Key spell... ( ◡_◡ )" }];
         setTemporaryMood('sleepy', 3000);
     } finally {
         isThinking = false;
