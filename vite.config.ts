@@ -1,27 +1,17 @@
-import { defineConfig, type PluginOption } from 'vite';
-import react from '@vitejs/plugin-react';
-import { visualizer } from 'rollup-plugin-visualizer';
+import { defineConfig } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 
-// https://vite.dev/config/
-export default defineConfig(() => {
-  const analyze = process.env.ANALYZE_BUNDLE === 'true';
-  const plugins: PluginOption[] = [react()];
-
-  if (analyze) {
-    plugins.push(
-      visualizer({
-        filename: 'dist/bundle-stats.html',
-        template: 'treemap',
-        gzipSize: true,
-        brotliSize: true,
-      }),
-    );
-  }
-
-  return {
-    plugins,
-    build: {
-      chunkSizeWarningLimit: 900,
-    },
-  };
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [svelte()],
+  // Ensure we can access the env variables
+  envPrefix: 'VITE_',
+  server: {
+    port: 1420,
+    strictPort: true,
+  },
+  build: {
+    // Svelte output is usually smaller, but let's keep reasonable defaults
+    target: 'esnext',
+  },
 });
