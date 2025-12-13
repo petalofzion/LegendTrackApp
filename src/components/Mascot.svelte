@@ -657,7 +657,7 @@
            </div>
         {/each}
         {#if isThinking}
-           <div class="chat-row ai thinking">...writing...</div>
+           <div class="chat-row ai thinking">...thinking of spell uwu...</div>
         {/if}
      </div>
      <div class="chat-input-row">
