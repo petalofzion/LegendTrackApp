@@ -408,28 +408,25 @@
     // Always trigger interaction (Bonk/Tickle) to keep it alive
     triggerInteraction();
 
-    // Check for API Key before opening chat
+    // Check for API Key silently
     const hasKey = typeof localStorage !== 'undefined' && localStorage.getItem('legendtrack_api_key');
     
-    if (!hasKey) {
-        setTemporaryMood('sleepy', 3000);
-        setTemporaryMessage("I need a magic key to open the Grimoire! 🔑\n(Check the gear menu)", 4000);
-        return;
-    }
-
-    // Toggle Chat visibility
-    const nextState = !chatOpen;
-    chatOpen = nextState;
-    
-    if (nextState) {
-        // If opening chat, clear any focused topic (Exclusive mode)
-        if (onClearFocus) onClearFocus();
+    // Only open chat if key is present
+    if (hasKey) {
+        // Toggle Chat visibility
+        const nextState = !chatOpen;
+        chatOpen = nextState;
         
-        // Focus input
-        setTimeout(() => {
-            const el = containerRef?.querySelector('textarea');
-            el?.focus();
-        }, 50);
+        if (nextState) {
+            // If opening chat, clear any focused topic (Exclusive mode)
+            if (onClearFocus) onClearFocus();
+            
+            // Focus input
+            setTimeout(() => {
+                const el = containerRef?.querySelector('textarea');
+                el?.focus();
+            }, 50);
+        }
     }
   }
 

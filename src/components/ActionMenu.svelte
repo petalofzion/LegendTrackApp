@@ -11,7 +11,8 @@
   let { zenMode, toggleZenMode, isTauri, onSelectFile }: Props = $props();
 
   function handleSaveApiKey() {
-    const current = typeof localStorage !== 'undefined' ? localStorage.getItem('legendtrack_api_key') || '' : '';
+    const current = localStorage.getItem('legendtrack_api_key') || '';
+    // Standard prompt, synchronous to ensure browser allows it
     const key = prompt("Enter your OpenAI/Anthropic API Key for the Grimoire:", current);
     
     if (key !== null) {
@@ -41,7 +42,6 @@
       class="action-button file-button"
       onclick={onSelectFile}
       title="Switch Tracker File"
-      tabindex={-1}
     >
       📂
     </button>
@@ -52,7 +52,6 @@
     class="action-button api-button"
     onclick={handleSaveApiKey}
     title="Set Grimoire Key"
-    tabindex={-1}
   >
     🔮
   </button>
