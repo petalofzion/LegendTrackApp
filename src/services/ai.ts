@@ -51,6 +51,7 @@ export type AiResponse = {
     name: string;
     args: Record<string, any>;
   }>;
+  modelUsed?: string; // Debug field to confirm provider response
 };
 
 /**
@@ -86,16 +87,9 @@ export class AiService {
     return null;
   }
 
-  private getModel(): string | null {
-    if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem('legendtrack_ai_model');
-    }
-    return null;
-  }
-
   async chat(userMessage: string, systemContext: string): Promise<AiResponse> {
     const key = this.getApiKey();
-    const preferredModel = this.getModel();
+    const preferredModel = typeof localStorage !== 'undefined' ? localStorage.getItem('legendtrack_api_model') : null;
 
     if (!key) {
       throw new Error("MISSING_API_KEY");
@@ -136,7 +130,7 @@ export class AiService {
         }
 
         const data = await response.json();
-        return { text: data.content[0].text };
+        return { text: data.content[0].text, modelUsed: data.model };
 
     } catch (e) {
         console.error(e);
@@ -166,7 +160,7 @@ export class AiService {
         }
 
         const data = await response.json();
-        return { text: data.choices[0].message.content };
+        return { text: data.choices[0].message.content, modelUsed: data.model };
 
     } catch (e) {
         console.error(e);
@@ -196,6 +190,7 @@ export class AiService {
       const data = await response.json();
       return {
         text: data.message?.content || "I'm not sure what to say.",
+        modelUsed: data.model
       };
     } catch (err) {
       console.error('AI Service Error:', err);

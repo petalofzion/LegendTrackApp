@@ -1183,8 +1183,8 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
 .mascot-chat-bubble {
   position: absolute;
   bottom: 45px;
-  right: 175%; /* To the LEFT of the mascot */
-  width: 320px; /* Slightly wider for chat */
+  right: 180%; /* Shifted further left */
+  width: 340px; /* Slightly wider */
   background: rgba(255, 255, 255, 0.98);
   border: 3px solid #f06ea9;
   border-radius: 20px 20px 0 20px; /* Bubble pointing right */
