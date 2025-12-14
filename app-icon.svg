@@ -4,56 +4,55 @@
       <stop offset="0%" style="stop-color:#ff9fdc;stop-opacity:1" />
       <stop offset="100%" style="stop-color:#c7d2fe;stop-opacity:1" />
     </linearGradient>
+    
+    <filter id="blushBlur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" />
+    </filter>
+
+    <filter id="stickerShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#6b5b95" flood-opacity="0.25"/>
+    </filter>
   </defs>
   
-  <!-- 
-     Math for 48px Visual Margin with 14px Stroke:
-     Margin Target: 48px
-     Stroke Overhang (14/2): 7px
-     Rect Position: 48 + 7 = 55
-     Rect Size: 512 - (55*2) = 402
-     
-     Visual Result: 
-     Outer Edge: 55 - 7 = 48px
-     Visual Size: 402 + 14 = 416px (81.25%)
-  -->
-  
   <!-- Background Squircle -->
-  <!-- Corner Radius scaled slightly: ~22% of 402 = 88 -->
-  <rect x="55" y="55" width="402" height="402" rx="88" ry="88" fill="url(#grad1)" stroke="#fff" stroke-width="14" />
+  <rect x="55" y="55" width="402" height="402" rx="88" ry="88" fill="url(#grad1)" stroke="#cceeff" stroke-width="14" />
   
-  <!-- Face Content -->
-  <!-- Centered at 256,256. Previous scale 0.88 fitted 416 box. -->
-  <!-- New box is 402 (vs 416). Ratio: 402/416 = ~0.96 -->
-  <!-- New Scale: 0.88 * 0.96 = 0.84 -->
-  
+  <!-- Face Group -->
   <g transform="translate(256, 256) scale(0.84) translate(-256, -256)">
-      <!-- CatBunny Ears (Left) -->
-      <path d="M140 140 L110 40 L200 120" fill="#fff" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-      <!-- CatBunny Ears (Right) -->
-      <path d="M372 140 L402 40 L312 120" fill="#fff" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+      
+      <g filter="url(#stickerShadow)">
+          <!-- CatBunny Ears -->
+          <!-- Fill changed to #fff5f9 (Goldilocks Pink) -->
+          
+          <path d="M140 160 Q100 75 125 60 Q150 45 210 120" 
+                fill="#fff5f9" stroke="#cceeff" stroke-width="10" stroke-linecap="butt" stroke-linejoin="round"/>
+          
+          <path d="M372 160 Q412 75 387 60 Q362 45 302 120" 
+                fill="#fff5f9" stroke="#cceeff" stroke-width="10" stroke-linecap="butt" stroke-linejoin="round"/>
+
+          <!-- Whiskers (Purple) -->
+          <line x1="100" y1="280" x2="60" y2="265" stroke="#6b5b95" stroke-width="12" stroke-linecap="round" />
+          <line x1="100" y1="300" x2="60" y2="315" stroke="#6b5b95" stroke-width="12" stroke-linecap="round" />
+          
+          <line x1="412" y1="280" x2="452" y2="265" stroke="#6b5b95" stroke-width="12" stroke-linecap="round" />
+          <line x1="412" y1="300" x2="452" y2="315" stroke="#6b5b95" stroke-width="12" stroke-linecap="round" />
+      </g>
 
       <!-- Eyes -->
       <circle cx="180" cy="260" r="24" fill="#6b5b95" />
       <circle cx="332" cy="260" r="24" fill="#6b5b95" />
       
-      <!-- Sparkles in eyes -->
+      <!-- Sparkles -->
       <circle cx="172" cy="252" r="8" fill="#fff" />
       <circle cx="324" cy="252" r="8" fill="#fff" />
       
-      <!-- Mouth (W shape) -->
+      <!-- Mouth -->
       <path d="M220 310 Q256 340 292 310" fill="none" stroke="#6b5b95" stroke-width="16" stroke-linecap="round" />
       
       <!-- Cheeks -->
-      <ellipse cx="150" cy="310" rx="30" ry="16" fill="#ffbadb" opacity="0.6" />
-      <ellipse cx="362" cy="310" rx="30" ry="16" fill="#ffbadb" opacity="0.6" />
+      <ellipse cx="150" cy="310" rx="30" ry="16" fill="#ff9ec6" opacity="0.8" filter="url(#blushBlur)" />
+      <ellipse cx="362" cy="310" rx="30" ry="16" fill="#ff9ec6" opacity="0.8" filter="url(#blushBlur)" />
 
-      <!-- Whiskers -->
-      <line x1="100" y1="280" x2="60" y2="270" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
-      <line x1="100" y1="300" x2="60" y2="310" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
-      
-      <line x1="412" y1="280" x2="452" y2="270" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
-      <line x1="412" y1="300" x2="452" y2="310" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
   </g>
 
 </svg>
