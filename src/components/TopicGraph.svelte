@@ -126,7 +126,6 @@
 
   // Graph Data Calculation
   let graphData = $derived.by(() => {
-    console.log('GraphData Calc: Topics count:', topics.length);
     const clusterCenters = new Map<string, { centerX: number; centerY: number; baseRadius: number; expandedRadius: number }>();
     const bucketCounts = new Map<string, number>();
     topics.forEach(t => {
@@ -369,7 +368,6 @@
   $effect(() => {
     if (!cy) return;
     const { elements } = graphData;
-    console.log('Data Sync Effect running. Elements:', elements.length);
 
     if (elements.length === 0 && cy.nodes().length > 0) {
         console.warn('Skipping graph update: incoming data is empty.');

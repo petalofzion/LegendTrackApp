@@ -5,6 +5,7 @@ import * as xlsx from 'xlsx';
 import type { Topic, Project } from '../types';
 
 const TRACKER_PATH_KEY = 'tracker_path';
+const API_BASE = (import.meta.env?.VITE_API_BASE ?? 'http://localhost:4179').replace(/\/$/, '');
 
 // --- Type Definitions (Ported from workbook.ts) ---
 
@@ -197,12 +198,12 @@ export async function loadData(): Promise<{ topics: Topic[]; projects: Project[]
     }
   } else {
     // Fallback to API for web dev
-    const tRes = await fetch('/api/topics');
-    if (!tRes.ok) throw new Error('Failed to fetch topics');
+    const tRes = await fetch(`${API_BASE}/api/topics`);
+    if (!tRes.ok) throw new Error(`Failed to fetch topics (${tRes.status})`);
     const topics = await tRes.json();
     
-    const pRes = await fetch('/api/projects');
-    if (!pRes.ok) throw new Error('Failed to fetch projects');
+    const pRes = await fetch(`${API_BASE}/api/projects`);
+    if (!pRes.ok) throw new Error(`Failed to fetch projects (${pRes.status})`);
     const projects = await pRes.json();
     
     return { topics, projects };

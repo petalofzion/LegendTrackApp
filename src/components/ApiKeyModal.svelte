@@ -3,26 +3,36 @@
   import { triggerConfetti } from '../utils/confetti';
   import { fade, scale, slide } from 'svelte/transition';
   import CuteSelect from './CuteSelect.svelte';
+  import { STORAGE_KEYS, DEFAULT_LOCAL_BASE, DEFAULT_LOCAL_MODEL, type AiModePreference } from '../services/aiConfig';
 
   let apiKey = $state('');
   let model = $state('');
   let customModelInput = $state('');
   let showTuning = $state(false);
+  let mode = $state<AiModePreference>('api');
+  let localBase = $state(DEFAULT_LOCAL_BASE);
+  let localModel = $state(DEFAULT_LOCAL_MODEL);
+  let localPrompt = $state('');
 
   // Constants
   const OPENAI_MODELS = ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
   const ANTHROPIC_MODELS = ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'];
   const ALL_DEFAULTS = new Set([...OPENAI_MODELS, ...ANTHROPIC_MODELS]);
+  const MODE_OPTIONS: Array<{ label: string; value: AiModePreference }> = [
+    { label: 'Hosted API (OpenAI / Anthropic)', value: 'api' },
+    { label: 'Local Spell (Ollama)', value: 'local' },
+  ];
 
   // Derived State
   let detectedProvider = $derived.by(() => {
+    if (mode === 'local') return 'Local';
     if (apiKey.startsWith('sk-ant')) return 'Anthropic';
     if (apiKey.startsWith('sk-')) return 'OpenAI';
     return 'Unknown';
   });
 
   let modelOptions = $derived.by(() => {
-    let base = [];
+    let base: string[] = [];
     if (detectedProvider === 'Anthropic') base = ANTHROPIC_MODELS;
     else if (detectedProvider === 'OpenAI') base = OPENAI_MODELS;
     else base = [...OPENAI_MODELS, ...ANTHROPIC_MODELS]; // Show all if unknown
@@ -32,8 +42,8 @@
 
   // Load existing data
   if (typeof localStorage !== 'undefined') {
-    apiKey = localStorage.getItem('legendtrack_api_key') || '';
-    const storedModel = localStorage.getItem('legendtrack_api_model');
+    apiKey = localStorage.getItem(STORAGE_KEYS.apiKey) || '';
+    const storedModel = localStorage.getItem(STORAGE_KEYS.apiModel);
     
     if (storedModel) {
         if (ALL_DEFAULTS.has(storedModel)) {
@@ -47,6 +57,14 @@
         // Default to Gold Standards if nothing saved
         model = 'gpt-4o'; // Just a visual default, detection overrides if key changes
     }
+
+    const storedMode = localStorage.getItem(STORAGE_KEYS.mode);
+    if (storedMode === 'local' || storedMode === 'api') {
+      mode = storedMode;
+    }
+    localBase = localStorage.getItem(STORAGE_KEYS.localBase) || DEFAULT_LOCAL_BASE;
+    localModel = localStorage.getItem(STORAGE_KEYS.localModel) || DEFAULT_LOCAL_MODEL;
+    localPrompt = localStorage.getItem(STORAGE_KEYS.localPrompt) || '';
   }
 
   // Auto-switch visual default if provider changes and current model mismatches
@@ -59,21 +77,43 @@
       }
   });
 
+  $effect(() => {
+      if (mode === 'local') {
+          showTuning = false;
+      }
+  });
+
   function save() {
-    if (apiKey.trim()) {
-      localStorage.setItem('legendtrack_api_key', apiKey.trim());
-      
-      const finalModel = model === 'Custom...' ? customModelInput.trim() : model;
-      if (finalModel) {
-          localStorage.setItem('legendtrack_api_model', finalModel);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.mode, mode);
+
+      if (mode === 'api') {
+        if (apiKey.trim()) {
+          localStorage.setItem(STORAGE_KEYS.apiKey, apiKey.trim());
+          
+          const finalModel = model === 'Custom...' ? customModelInput.trim() : model;
+          if (finalModel) {
+              localStorage.setItem(STORAGE_KEYS.apiModel, finalModel);
+          } else {
+              localStorage.removeItem(STORAGE_KEYS.apiModel);
+          }
+        } else {
+          localStorage.removeItem(STORAGE_KEYS.apiKey);
+          localStorage.removeItem(STORAGE_KEYS.apiModel);
+        }
+      }
+
+      const sanitizedBase = localBase.trim() || DEFAULT_LOCAL_BASE;
+      const sanitizedModel = localModel.trim() || DEFAULT_LOCAL_MODEL;
+      localStorage.setItem(STORAGE_KEYS.localBase, sanitizedBase);
+      localStorage.setItem(STORAGE_KEYS.localModel, sanitizedModel);
+      if (localPrompt.trim()) {
+        localStorage.setItem(STORAGE_KEYS.localPrompt, localPrompt.trim());
       } else {
-          localStorage.removeItem('legendtrack_api_model');
+        localStorage.removeItem(STORAGE_KEYS.localPrompt);
       }
 
       triggerConfetti();
-    } else {
-      localStorage.removeItem('legendtrack_api_key');
-      localStorage.removeItem('legendtrack_api_model');
     }
     $showApiKeyModal = false;
   }
@@ -93,6 +133,7 @@
       transition:scale={{ duration: 300, start: 0.9 }}
       role="dialog"
       aria-modal="true"
+      tabindex="-1"
     >
       <div class="modal-header">
         <h2>✨ Grimoire Key ✨</h2>
@@ -103,40 +144,85 @@
         To awaken the spirit in the machine, whisper your secret API key here...
       </p>
 
-      <div class="input-group">
-        <input 
-          type="password" 
-          bind:value={apiKey} 
-          placeholder="sk-..." 
-          class="cute-input"
-          onkeydown={(e) => e.key === 'Enter' && save()}
+      <div class="mode-section">
+        <p class="field-label">Summoning Path</p>
+        <CuteSelect 
+          value={mode} 
+          options={MODE_OPTIONS} 
+          onChange={(v) => mode = (v as AiModePreference)} 
         />
-        {#if detectedProvider !== 'Unknown'}
-            <span class="provider-badge" transition:fade>{detectedProvider}</span>
-        {/if}
       </div>
 
-      <button class="tuning-toggle" onclick={() => showTuning = !showTuning}>
-        {showTuning ? 'Hide Tuning' : 'Tune Spirit? 🔮'}
-      </button>
+      {#if mode === 'api'}
+        <div class="input-group">
+          <input 
+            type="password" 
+            bind:value={apiKey} 
+            placeholder="sk-..." 
+            class="cute-input"
+            onkeydown={(e) => e.key === 'Enter' && save()}
+          />
+          {#if detectedProvider !== 'Unknown'}
+              <span class="provider-badge" transition:fade>{detectedProvider}</span>
+          {/if}
+        </div>
 
-      {#if showTuning}
-        <div class="tuning-panel" transition:slide={{ duration: 200 }}>
-            <label>Spirit Model</label>
-            <CuteSelect 
-                value={model} 
-                options={modelOptions} 
-                onChange={(v) => model = v} 
+        <button class="tuning-toggle" onclick={() => showTuning = !showTuning}>
+          {showTuning ? 'Hide Tuning' : 'Tune Spirit? 🔮'}
+        </button>
+
+        {#if showTuning}
+          <div class="tuning-panel" transition:slide={{ duration: 200 }}>
+              <p class="field-label">Spirit Model</p>
+              <CuteSelect 
+                  value={model} 
+                  options={modelOptions} 
+                  onChange={(v) => model = v} 
+              />
+              
+              {#if model === 'Custom...'}
+                  <input 
+                      type="text" 
+                      bind:value={customModelInput} 
+                      placeholder="e.g. gpt-4-turbo-preview" 
+                      class="cute-input custom-model"
+                  />
+              {/if}
+          </div>
+        {/if}
+      {:else}
+        <div class="local-panel">
+          <div class="input-group">
+            <label class="field-label" for="local-base">Local Base URL</label>
+            <input 
+              id="local-base"
+              type="text"
+              bind:value={localBase}
+              class="cute-input"
+              placeholder="http://localhost:11434"
             />
-            
-            {#if model === 'Custom...'}
-                <input 
-                    type="text" 
-                    bind:value={customModelInput} 
-                    placeholder="e.g. gpt-4-turbo-preview" 
-                    class="cute-input custom-model"
-                />
-            {/if}
+          </div>
+          <div class="input-group">
+            <label class="field-label" for="local-model">Model ID</label>
+            <input
+              id="local-model"
+              type="text"
+              bind:value={localModel}
+              class="cute-input"
+              placeholder="llama3"
+            />
+          </div>
+          <div class="input-group">
+            <label class="field-label" for="local-prompt">Default Incantation</label>
+            <textarea
+              id="local-prompt"
+              class="cute-textarea"
+              rows="3"
+              bind:value={localPrompt}
+              placeholder="e.g. You are a kawaii systems tutor..."
+            ></textarea>
+            <p class="local-hint">Appended beneath the system spell before every local chat.</p>
+          </div>
         </div>
       {/if}
 
@@ -214,6 +300,19 @@
     font-weight: 600;
   }
 
+  .mode-section {
+    text-align: left;
+    margin-bottom: 1rem;
+  }
+
+  .field-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #b07ac5;
+    margin-bottom: 0.35rem;
+    text-align: left;
+  }
+
   .input-group {
       position: relative;
       margin-bottom: 1rem;
@@ -276,20 +375,37 @@
       text-align: left;
   }
 
-  .tuning-panel label {
-      display: block;
-      margin-bottom: 0.5rem;
-      font-size: 0.85rem;
-      color: #8c7ba3;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-  }
-
   .custom-model {
       margin-top: 0.8rem;
       font-size: 0.9rem;
       padding: 0.6rem 1rem;
+  }
+
+  .local-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+      margin-top: 0.5rem;
+  }
+
+  .cute-textarea {
+      width: 100%;
+      border-radius: 18px;
+      border: 2px solid #ffd6eb;
+      padding: 0.75rem 1rem;
+      font-family: inherit;
+      background: rgba(255, 255, 255, 0.92);
+      resize: vertical;
+      min-height: 80px;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08);
+      color: #6b5b95;
+  }
+
+  .local-hint {
+      margin: 0.35rem 0 0;
+      font-size: 0.85rem;
+      color: #a272bd;
+      text-align: left;
   }
 
   .modal-actions {

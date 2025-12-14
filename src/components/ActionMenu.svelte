@@ -1,6 +1,6 @@
 <script lang="ts">
   import { triggerConfetti } from '../utils/confetti';
-  import { loadFromFile, selectTrackerFile, loadData } from '../services/tracker';
+  import { loadFromFile } from '../services/tracker';
   import { topics, projects, showApiKeyModal } from '../stores';
   
   interface Props {
@@ -12,6 +12,7 @@
 
   let { zenMode, toggleZenMode, isTauri, onSelectFile }: Props = $props();
   let isInteracting = $state(false);
+  let fileInput = $state<HTMLInputElement | null>(null);
 
   async function handleFileSelect(e: Event) {
     const input = e.target as HTMLInputElement;
@@ -27,35 +28,24 @@
         alert('Failed to load file: ' + err);
       }
     }
-    isOpen = false;
+    isInteracting = false;
   }
   
   async function handleFolderClick() {
-    isInteracting = true;
     if (isTauri) {
-        const path = await selectTrackerFile();
-        if (path) {
-            try {
-                const data = await loadData();
-                topics.set(data.topics);
-                projects.set(data.projects);
-                triggerConfetti();
-            } catch (err) {
-                console.error(err);
-                alert('Failed to load data from ' + path);
-            }
+        isInteracting = true;
+        try {
+            await onSelectFile();
+        } finally {
+            isInteracting = false;
         }
-        isInteracting = false;
-        isOpen = false; // Close menu after selection
     } else {
-        fileInput.click();
-        isOpen = false; 
+        fileInput?.click();
     }
   }
 
   function handleOpenKeyModal() {
     $showApiKeyModal = true;
-    isOpen = false; // Close menu so it's clean
   }
 </script>
 

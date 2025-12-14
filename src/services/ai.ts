@@ -1,6 +1,7 @@
 import type { Topic, Project } from '../types';
 import { get } from 'svelte/store';
 import { topics, projects } from '../stores';
+import { STORAGE_KEYS, DEFAULT_LOCAL_BASE, DEFAULT_LOCAL_MODEL, type AiModePreference } from './aiConfig';
 
 /**
  * Serializes the current application state into a prompt-friendly format
@@ -64,6 +65,12 @@ export type AiConfig = {
   apiKey?: string;
 };
 
+type LocalSettings = {
+  baseUrl: string;
+  model: string;
+  prompt: string;
+};
+
 const DEFAULT_CONFIG: AiConfig = {
   provider: 'ollama', // Default, but auto-switches if key is found
   model: 'llama3', 
@@ -82,28 +89,57 @@ export class AiService {
 
   private getApiKey(): string | null {
     if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem('legendtrack_api_key');
+      return localStorage.getItem(STORAGE_KEYS.apiKey);
     }
     return null;
   }
 
+  private getMode(): AiModePreference {
+    if (typeof localStorage === 'undefined') return 'api';
+    const stored = localStorage.getItem(STORAGE_KEYS.mode);
+    return stored === 'local' ? 'local' : 'api';
+  }
+
+  private getLocalSettings(): LocalSettings {
+    if (typeof localStorage === 'undefined') {
+      return {
+        baseUrl: this.config.baseUrl ?? DEFAULT_LOCAL_BASE,
+        model: this.config.model || DEFAULT_LOCAL_MODEL,
+        prompt: '',
+      };
+    }
+    const baseUrl = localStorage.getItem(STORAGE_KEYS.localBase) || this.config.baseUrl || DEFAULT_LOCAL_BASE;
+    const model = localStorage.getItem(STORAGE_KEYS.localModel) || this.config.model || DEFAULT_LOCAL_MODEL;
+    const prompt = localStorage.getItem(STORAGE_KEYS.localPrompt) || '';
+    return { baseUrl, model, prompt };
+  }
+
   async chat(userMessage: string, systemContext: string): Promise<AiResponse> {
+    const mode = this.getMode();
+    const localSettings = this.getLocalSettings();
+    const decoratedSystem =
+      mode === 'local' && localSettings.prompt.trim().length
+        ? `${systemContext}\n\n${localSettings.prompt.trim()}`
+        : systemContext;
+
+    if (mode === 'local') {
+      return this.chatOllama(userMessage, decoratedSystem, localSettings);
+    }
+
     const key = this.getApiKey();
-    const preferredModel = typeof localStorage !== 'undefined' ? localStorage.getItem('legendtrack_api_model') : null;
+    const preferredModel = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.apiModel) : null;
 
     if (!key) {
       throw new Error("MISSING_API_KEY");
     }
 
-    // Auto-detect provider
     if (key.startsWith('sk-ant')) {
         return this.chatAnthropic(key, userMessage, systemContext, preferredModel);
     } else if (key.startsWith('sk-')) {
         return this.chatOpenAI(key, userMessage, systemContext, preferredModel);
-    } else {
-        // Assume Ollama or unknown
-        return this.chatOllama(userMessage, systemContext);
     }
+
+    throw new Error("MISSING_API_KEY");
   }
 
   private async chatAnthropic(key: string, userMessage: string, systemContext: string, preferredModel: string | null): Promise<AiResponse> {
@@ -168,13 +204,19 @@ export class AiService {
     }
   }
 
-  private async chatOllama(userMessage: string, systemContext: string): Promise<AiResponse> {
+  private async chatOllama(
+    userMessage: string,
+    systemContext: string,
+    overrides?: Pick<LocalSettings, 'baseUrl' | 'model'>,
+  ): Promise<AiResponse> {
     try {
-      const response = await fetch(`${this.config.baseUrl}/api/chat`, {
+      const baseUrl = (overrides?.baseUrl ?? this.config.baseUrl ?? DEFAULT_LOCAL_BASE).replace(/\/$/, '');
+      const model = overrides?.model ?? this.config.model ?? DEFAULT_LOCAL_MODEL;
+      const response = await fetch(`${baseUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: this.config.model,
+          model,
           messages: [
             { role: 'system', content: systemContext },
             { role: 'user', content: userMessage }
@@ -194,8 +236,8 @@ export class AiService {
       };
     } catch (err) {
       console.error('AI Service Error:', err);
-      // If Ollama fails, we assume it's because the user hasn't set up anything
-      throw new Error("MISSING_API_KEY"); 
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(`OLLAMA_UNAVAILABLE: ${detail}`);
     }
   }
 }
