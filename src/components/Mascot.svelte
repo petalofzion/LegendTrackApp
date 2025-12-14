@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import type { Topic } from '../types';
   import { serializeContext, ai } from '../services/ai';
+  import { aiCredentials, ensureAiCredentialsLoaded, hasHostedApiKey } from '../services/aiConfig';
 
   type MascotMood = 'idle' | 'happy' | 'excited' | 'sleepy' | 'tickled' | 'bonked' | 'patted' | 'hugged' | 'thinking';
   type MascotPosition = { x: number; y: number };
@@ -205,7 +206,13 @@
   // Reactive derived values
   let displayMessage = $derived(customMessage || currentMessage);
   let bubbleVisible = $derived(Boolean(customMessage) || (displayBubble && Boolean(currentMessage)));
-
+  let credentialProfile = $derived($aiCredentials);
+  let canOpenChat = $derived.by(() => {
+      if (credentialProfile.mode === 'local') {
+          return Boolean(credentialProfile.localBase?.trim()) && Boolean(credentialProfile.localModel?.trim());
+      }
+      return hasHostedApiKey(credentialProfile);
+  });
   let collectionKey = $derived.by(() => {
     let key: string = internalMood;
     if (zenMode) {
@@ -227,6 +234,12 @@
 
   // Helper to change mood safely and reset GIF index
   function setMood(newMood: MascotMood) {
+    // Clear any pending temporary mood timer so we don't revert unexpectedly
+    if (moodTimer) {
+        clearTimeout(moodTimer);
+        moodTimer = null;
+    }
+
     internalMood = newMood;
     // When mood changes, pick a random GIF from the new collection immediately
     // so we don't flash a stale GIF from the old mood
@@ -420,25 +433,19 @@
     // Always trigger interaction (Bonk/Tickle) to keep it alive
     triggerInteraction();
 
-    // Check for API Key silently
-    const hasKey = typeof localStorage !== 'undefined' && localStorage.getItem('legendtrack_api_key');
+    if (!canOpenChat) {
+        return;
+    }
+
+    const nextState = !chatOpen;
+    chatOpen = nextState;
     
-    // Only open chat if key is present
-    if (hasKey) {
-        // Toggle Chat visibility
-        const nextState = !chatOpen;
-        chatOpen = nextState;
-        
-        if (nextState) {
-            // If opening chat, clear any focused topic (Exclusive mode)
-            if (onClearFocus) onClearFocus();
-            
-            // Focus input
-            setTimeout(() => {
-                const el = containerRef?.querySelector('textarea');
-                el?.focus();
-            }, 50);
-        }
+    if (nextState) {
+        if (onClearFocus) onClearFocus();
+        setTimeout(() => {
+            const el = containerRef?.querySelector('textarea');
+            el?.focus();
+        }, 50);
     }
   }
 
@@ -483,6 +490,7 @@
   // --- Effects ---
 
   onMount(() => {
+    ensureAiCredentialsLoaded();
     // Initial position logic
     let starting: MascotPosition | null = null;
     try {

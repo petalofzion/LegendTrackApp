@@ -1,8 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Chewy&family=Fredoka:wght@300;400;500;600&display=swap');
 
 :root {
-  /* Fallback to emoji cursor if image is missing */
-  --cursor-paw: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'  width='40' height='48' viewport='0 0 100 100' style='fill:black;font-size:24px;'><text y='50%'>🐾</text></svg>") 16 0, auto; 
+  /* No-gap chubby paw: Toes moved down to touch the main pad for a unified shape */
+  --cursor-paw: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" style="filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.15));"><g fill="%23FFB6C1" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="7" cy="17" rx="3.5" ry="4.5" transform="rotate(-30, 7, 17)" /><ellipse cx="14" cy="13" rx="4" ry="5" transform="rotate(-10, 14, 13)" /><ellipse cx="22" cy="13" rx="4" ry="5" transform="rotate(10, 22, 13)" /><ellipse cx="29" cy="17" rx="3.5" ry="4.5" transform="rotate(30, 29, 17)" /><path d="M18 32 C 12 32 8 27 8 22 C 8 19 11 17 13 18 C 15 19 16 20 18 18 C 20 20 21 19 23 18 C 25 17 28 19 28 22 C 28 27 24 32 18 32 Z" /></g></svg>') 18 18, auto;
   --cursor-paw-pointer: pointer;
 }
 
@@ -30,6 +30,14 @@
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6);
 }
 
+/* Force Cursor on Interactive Elements & Scrollbars */
+button, a, input, select, textarea, 
+::-webkit-scrollbar, ::-webkit-scrollbar-thumb, ::-webkit-scrollbar-track,
+.app::-webkit-scrollbar, .app::-webkit-scrollbar-thumb, .app::-webkit-scrollbar-track,
+[role="button"] {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" style="filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.15));"><g fill="%23FFB6C1" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="7" cy="17" rx="3.5" ry="4.5" transform="rotate(-30, 7, 17)" /><ellipse cx="14" cy="13" rx="4" ry="5" transform="rotate(-10, 14, 13)" /><ellipse cx="22" cy="13" rx="4" ry="5" transform="rotate(10, 22, 13)" /><ellipse cx="29" cy="17" rx="3.5" ry="4.5" transform="rotate(30, 29, 17)" /><path d="M18 32 C 12 32 8 27 8 22 C 8 19 11 17 13 18 C 15 19 16 20 18 18 C 20 20 21 19 23 18 C 25 17 28 19 28 22 C 28 27 24 32 18 32 Z" /></g></svg>') 18 18, auto !important;
+}
+
 /* =========================================
    1. APP SHELL & LAYOUT
    ========================================= */
@@ -39,7 +47,7 @@ html, body {
   margin: 0;
   padding: 0;
   overflow: hidden; /* Hide window scrollbar, let .app scroll */
-  cursor: var(--cursor-paw);
+  cursor: var(--cursor-paw) !important;
 }
 
 #root {
@@ -65,7 +73,7 @@ html, body {
   padding: 2.8rem;
   font-family: 'Nunito', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
-  cursor: var(--cursor-paw);
+  cursor: var(--cursor-paw) !important;
 }
 
 .content-layout {
@@ -887,7 +895,7 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
   width: 120px;
   height: 120px;
   filter: drop-shadow(0 5px 15px rgba(0,0,0,0.2));
-  cursor: var(--cursor-paw);
+  cursor: var(--cursor-paw) !important;
   pointer-events: auto;
   transition: transform 0.2s;
   will-change: transform;
@@ -898,14 +906,14 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
   position: fixed;
   z-index: 100;
   pointer-events: auto;
-  cursor: var(--cursor-paw);
+  cursor: var(--cursor-paw) !important;
   touch-action: none;
   user-select: none;
 }
 .mascot-container *,
 .mascot-container.dragging,
 .mascot-container.dragging * {
-  cursor: var(--cursor-paw);
+  cursor: var(--cursor-paw) !important;
 }
 .mascot-bubble {
   position: absolute;

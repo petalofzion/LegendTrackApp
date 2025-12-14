@@ -1,9 +1,17 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { showApiKeyModal } from '../stores';
   import { triggerConfetti } from '../utils/confetti';
   import { fade, scale, slide } from 'svelte/transition';
   import CuteSelect from './CuteSelect.svelte';
-  import { STORAGE_KEYS, DEFAULT_LOCAL_BASE, DEFAULT_LOCAL_MODEL, type AiModePreference } from '../services/aiConfig';
+  import {
+    type AiModePreference,
+    type AiCredentialPayload,
+    loadAiCredentials,
+    saveAiCredentials,
+    DEFAULT_LOCAL_BASE,
+    DEFAULT_LOCAL_MODEL,
+  } from '../services/aiConfig';
 
   let apiKey = $state('');
   let model = $state('');
@@ -13,6 +21,7 @@
   let localBase = $state(DEFAULT_LOCAL_BASE);
   let localModel = $state(DEFAULT_LOCAL_MODEL);
   let localPrompt = $state('');
+  let isLoading = $state(true);
 
   // Constants
   const OPENAI_MODELS = ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
@@ -40,31 +49,26 @@
     return [...base, 'Custom...'];
   });
 
-  // Load existing data
-  if (typeof localStorage !== 'undefined') {
-    apiKey = localStorage.getItem(STORAGE_KEYS.apiKey) || '';
-    const storedModel = localStorage.getItem(STORAGE_KEYS.apiModel);
-    
-    if (storedModel) {
-        if (ALL_DEFAULTS.has(storedModel)) {
-            model = storedModel;
-        } else {
-            model = 'Custom...';
-            customModelInput = storedModel;
-            showTuning = true; // Auto-open if custom
-        }
-    } else {
-        // Default to Gold Standards if nothing saved
-        model = 'gpt-4o'; // Just a visual default, detection overrides if key changes
-    }
+  onMount(async () => {
+    const creds = await loadAiCredentials();
+    hydrateForm(creds);
+    isLoading = false;
+  });
 
-    const storedMode = localStorage.getItem(STORAGE_KEYS.mode);
-    if (storedMode === 'local' || storedMode === 'api') {
-      mode = storedMode;
+  function hydrateForm(creds: AiCredentialPayload) {
+    mode = creds.mode;
+    apiKey = creds.apiKey;
+    if (ALL_DEFAULTS.has(creds.apiModel)) {
+      model = creds.apiModel;
+      customModelInput = '';
+    } else {
+      model = creds.apiModel || 'Custom...';
+      customModelInput = creds.apiModel;
+      showTuning = true;
     }
-    localBase = localStorage.getItem(STORAGE_KEYS.localBase) || DEFAULT_LOCAL_BASE;
-    localModel = localStorage.getItem(STORAGE_KEYS.localModel) || DEFAULT_LOCAL_MODEL;
-    localPrompt = localStorage.getItem(STORAGE_KEYS.localPrompt) || '';
+    localBase = creds.localBase;
+    localModel = creds.localModel;
+    localPrompt = creds.localPrompt;
   }
 
   // Auto-switch visual default if provider changes and current model mismatches
@@ -83,38 +87,17 @@
       }
   });
 
-  function save() {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(STORAGE_KEYS.mode, mode);
-
-      if (mode === 'api') {
-        if (apiKey.trim()) {
-          localStorage.setItem(STORAGE_KEYS.apiKey, apiKey.trim());
-          
-          const finalModel = model === 'Custom...' ? customModelInput.trim() : model;
-          if (finalModel) {
-              localStorage.setItem(STORAGE_KEYS.apiModel, finalModel);
-          } else {
-              localStorage.removeItem(STORAGE_KEYS.apiModel);
-          }
-        } else {
-          localStorage.removeItem(STORAGE_KEYS.apiKey);
-          localStorage.removeItem(STORAGE_KEYS.apiModel);
-        }
-      }
-
-      const sanitizedBase = localBase.trim() || DEFAULT_LOCAL_BASE;
-      const sanitizedModel = localModel.trim() || DEFAULT_LOCAL_MODEL;
-      localStorage.setItem(STORAGE_KEYS.localBase, sanitizedBase);
-      localStorage.setItem(STORAGE_KEYS.localModel, sanitizedModel);
-      if (localPrompt.trim()) {
-        localStorage.setItem(STORAGE_KEYS.localPrompt, localPrompt.trim());
-      } else {
-        localStorage.removeItem(STORAGE_KEYS.localPrompt);
-      }
-
-      triggerConfetti();
-    }
+  async function save() {
+    const payload = {
+      mode,
+      apiKey: apiKey.trim(),
+      apiModel: model === 'Custom...' ? customModelInput.trim() : model,
+      localBase,
+      localModel,
+      localPrompt,
+    };
+    await saveAiCredentials(payload);
+    triggerConfetti();
     $showApiKeyModal = false;
   }
 
@@ -154,41 +137,45 @@
       </div>
 
       {#if mode === 'api'}
-        <div class="input-group">
-          <input 
-            type="password" 
-            bind:value={apiKey} 
-            placeholder="sk-..." 
-            class="cute-input"
-            onkeydown={(e) => e.key === 'Enter' && save()}
-          />
-          {#if detectedProvider !== 'Unknown'}
-              <span class="provider-badge" transition:fade>{detectedProvider}</span>
-          {/if}
-        </div>
-
-        <button class="tuning-toggle" onclick={() => showTuning = !showTuning}>
-          {showTuning ? 'Hide Tuning' : 'Tune Spirit? 🔮'}
-        </button>
-
-        {#if showTuning}
-          <div class="tuning-panel" transition:slide={{ duration: 200 }}>
-              <p class="field-label">Spirit Model</p>
-              <CuteSelect 
-                  value={model} 
-                  options={modelOptions} 
-                  onChange={(v) => model = v} 
-              />
-              
-              {#if model === 'Custom...'}
-                  <input 
-                      type="text" 
-                      bind:value={customModelInput} 
-                      placeholder="e.g. gpt-4-turbo-preview" 
-                      class="cute-input custom-model"
-                  />
-              {/if}
+        {#if isLoading}
+          <p class="loading-text">Summoning stored credentials...</p>
+        {:else}
+          <div class="input-group">
+            <input 
+              type="password" 
+              bind:value={apiKey} 
+              placeholder="sk-..." 
+              class="cute-input"
+              onkeydown={(e) => e.key === 'Enter' && save()}
+            />
+            {#if detectedProvider !== 'Unknown'}
+                <span class="provider-badge" transition:fade>{detectedProvider}</span>
+            {/if}
           </div>
+
+          <button class="tuning-toggle" onclick={() => showTuning = !showTuning}>
+            {showTuning ? 'Hide Tuning' : 'Tune Spirit? 🔮'}
+          </button>
+
+          {#if showTuning}
+            <div class="tuning-panel" transition:slide={{ duration: 200 }}>
+                <p class="field-label">Spirit Model</p>
+                <CuteSelect 
+                    value={model} 
+                    options={modelOptions} 
+                    onChange={(v) => model = v} 
+                />
+                
+                {#if model === 'Custom...'}
+                    <input 
+                        type="text" 
+                        bind:value={customModelInput} 
+                        placeholder="e.g. gpt-4-turbo-preview" 
+                        class="cute-input custom-model"
+                    />
+                {/if}
+            </div>
+          {/if}
         {/if}
       {:else}
         <div class="local-panel">
@@ -331,6 +318,12 @@
       border-radius: 12px;
       pointer-events: none;
       border: 1px solid #d1c4e9;
+  }
+
+  .loading-text {
+    margin: 0 0 1rem;
+    color: #8c7ba3;
+    font-size: 0.95rem;
   }
 
   .cute-input {

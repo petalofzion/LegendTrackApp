@@ -1,11 +1,10 @@
-import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { open, message } from '@tauri-apps/plugin-dialog';
-// import { Store } from '@tauri-apps/plugin-store'; // REMOVED
+import { invoke } from '@tauri-apps/api/core';
 import * as xlsx from 'xlsx';
 import type { Topic, Project } from '../types';
 
 const TRACKER_PATH_KEY = 'tracker_path';
-const API_BASE = (import.meta.env?.VITE_API_BASE ?? 'http://localhost:4179').replace(/\/$/, '');
+const DATA_BASE = '/data';
 
 // --- Type Definitions (Ported from workbook.ts) ---
 
@@ -176,71 +175,23 @@ export async function loadData(): Promise<{ topics: Topic[]; projects: Project[]
     if (!path) {
       throw new Error('No tracker file selected.');
     }
-    
-    // Read file
     try {
-        const data = await readFile(path);
-        const workbook = xlsx.read(data, { type: 'array', cellDates: true });
-        
-        const topicsSheet = workbook.Sheets['Topics'];
-        const projectsSheet = workbook.Sheets['Projects & Experiments'];
-        
-        if (!topicsSheet) throw new Error('Sheet "Topics" not found.');
-        
-        const topics = extractTopics(topicsSheet);
-        const projects = projectsSheet ? extractProjects(projectsSheet) : [];
-        
-        return { topics, projects };
+      const { topics, projects } = await invoke<{ topics: Topic[]; projects: Project[] }>('load_tracker', { path });
+      return { topics, projects };
     } catch (err) {
-        console.error('Failed to load data from path:', path, err);
-        await message(`Failed to load data from ${path}\n\n${err}`, { title: 'Load Error', kind: 'error' });
-        throw err;
+      console.error('Failed to load data from path:', path, err);
+      await message(`Failed to load data from ${path}\n\n${err}`, { title: 'Load Error', kind: 'error' });
+      throw err;
     }
   } else {
-    // Fallback to API for web dev
-    const tRes = await fetch(`${API_BASE}/api/topics`);
-    if (!tRes.ok) throw new Error(`Failed to fetch topics (${tRes.status})`);
-    const topics = await tRes.json();
-    
-    const pRes = await fetch(`${API_BASE}/api/projects`);
-    if (!pRes.ok) throw new Error(`Failed to fetch projects (${pRes.status})`);
-    const projects = await pRes.json();
-    
+    const [topicsRes, projectsRes] = await Promise.all([
+      fetch(`${DATA_BASE}/topics.json`),
+      fetch(`${DATA_BASE}/projects.json`),
+    ]);
+    if (!topicsRes.ok) throw new Error(`Failed to fetch topics (${topicsRes.status})`);
+    if (!projectsRes.ok) throw new Error(`Failed to fetch projects (${projectsRes.status})`);
+    const [topics, projects] = await Promise.all([topicsRes.json(), projectsRes.json()]);
     return { topics, projects };
-  }
-}
-
-// Update logic reused from server/index.ts but adapted
-function getHeaderMap(sheet: xlsx.WorkSheet) {
-  const ref = sheet['!ref'];
-  if (!ref) throw new Error('Topics sheet is empty');
-  const range = xlsx.utils.decode_range(ref);
-  const headerRow = range.s.r;
-  const headerMap = new Map<string, number>();
-
-  for (let col = range.s.c; col <= range.e.c; col += 1) {
-    const cellAddress = xlsx.utils.encode_cell({ c: col, r: headerRow });
-    const cell = sheet[cellAddress];
-    if (!cell) continue;
-    const header = String(cell.v).trim();
-    if (header.length === 0) continue;
-    headerMap.set(header, col);
-  }
-  return { headerMap, range, headerRow };
-}
-
-function setCellValue(
-  sheet: xlsx.WorkSheet,
-  col: number,
-  row: number,
-  value: string,
-) {
-  const address = xlsx.utils.encode_cell({ c: col, r: row });
-  if (!sheet[address]) {
-    sheet[address] = { t: 's', v: value };
-  } else {
-    sheet[address].t = 's';
-    sheet[address].v = value;
   }
 }
 
@@ -251,74 +202,12 @@ export type TopicUpdatePayload = {
 };
 
 export async function updateTopic(topicId: string, payload: TopicUpdatePayload): Promise<void> {
-  if (isTauri()) {
-    const path = await getTrackerPath();
-    if (!path) throw new Error('No tracker file selected.');
-
-    const data = await readFile(path);
-    const workbook = xlsx.read(data, { type: 'array', cellDates: false });
-    const sheet = workbook.Sheets['Topics'];
-    if (!sheet) throw new Error('Topics sheet missing.');
-
-    const { headerMap, range, headerRow } = getHeaderMap(sheet);
-    const idCol = headerMap.get('ID');
-    if (idCol === undefined) throw new Error('ID column not found.');
-
-    const columnsToUpdate: Array<[keyof TopicUpdatePayload, string]> = [
-        ['depthTarget', 'Depth Target (L1-L4)'],
-        ['currentDepth', 'Current Depth'],
-        ['status', 'Status'],
-    ];
-
-    const targetUpdates = columnsToUpdate
-      .map(([key, header]) => {
-        const col = headerMap.get(header);
-        return { key, header, col };
-      })
-      .filter((entry) => entry.col !== undefined) as Array<{
-      key: keyof TopicUpdatePayload;
-      header: string;
-      col: number;
-    }>;
-
-    let updated = false;
-    for (let row = headerRow + 1; row <= range.e.r; row += 1) {
-      const address = xlsx.utils.encode_cell({ c: idCol, r: row });
-      const cell = sheet[address];
-      if (!cell) continue;
-      const cellValue = String(cell.v).trim();
-      if (cellValue !== topicId) continue;
-
-      for (const { key, col } of targetUpdates) {
-        const newValue = payload[key];
-        if (typeof newValue === 'undefined') continue;
-        setCellValue(sheet, col, row, newValue);
-        updated = true;
-      }
-      break;
-    }
-
-    if (!updated) {
-        // If not found, maybe fine? But server threw error.
-        throw new Error(`Topic ${topicId} not found.`);
-    }
-
-    // Write back
-    const outData = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    await writeFile(path, new Uint8Array(outData));
-
-  } else {
-    // Web Fallback
-    const res = await fetch(`/api/topics/${topicId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to update topic');
-    }
+  if (!isTauri()) {
+    throw new Error('Editing topics is only supported in the desktop app.');
   }
+  const path = await getTrackerPath();
+  if (!path) throw new Error('No tracker file selected.');
+  await invoke('update_topic', { path, topicId, payload });
 }
 
 // Keep a reference to the interval

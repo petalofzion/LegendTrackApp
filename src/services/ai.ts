@@ -1,7 +1,7 @@
 import type { Topic, Project } from '../types';
 import { get } from 'svelte/store';
 import { topics, projects } from '../stores';
-import { STORAGE_KEYS, DEFAULT_LOCAL_BASE, DEFAULT_LOCAL_MODEL, type AiModePreference } from './aiConfig';
+import { getAiCredentials, DEFAULT_LOCAL_BASE, DEFAULT_LOCAL_MODEL } from './aiConfig';
 
 /**
  * Serializes the current application state into a prompt-friendly format
@@ -65,12 +65,6 @@ export type AiConfig = {
   apiKey?: string;
 };
 
-type LocalSettings = {
-  baseUrl: string;
-  model: string;
-  prompt: string;
-};
-
 const DEFAULT_CONFIG: AiConfig = {
   provider: 'ollama', // Default, but auto-switches if key is found
   model: 'llama3', 
@@ -87,47 +81,22 @@ export class AiService {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  private getApiKey(): string | null {
-    if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem(STORAGE_KEYS.apiKey);
-    }
-    return null;
-  }
-
-  private getMode(): AiModePreference {
-    if (typeof localStorage === 'undefined') return 'api';
-    const stored = localStorage.getItem(STORAGE_KEYS.mode);
-    return stored === 'local' ? 'local' : 'api';
-  }
-
-  private getLocalSettings(): LocalSettings {
-    if (typeof localStorage === 'undefined') {
-      return {
-        baseUrl: this.config.baseUrl ?? DEFAULT_LOCAL_BASE,
-        model: this.config.model || DEFAULT_LOCAL_MODEL,
-        prompt: '',
-      };
-    }
-    const baseUrl = localStorage.getItem(STORAGE_KEYS.localBase) || this.config.baseUrl || DEFAULT_LOCAL_BASE;
-    const model = localStorage.getItem(STORAGE_KEYS.localModel) || this.config.model || DEFAULT_LOCAL_MODEL;
-    const prompt = localStorage.getItem(STORAGE_KEYS.localPrompt) || '';
-    return { baseUrl, model, prompt };
-  }
-
   async chat(userMessage: string, systemContext: string): Promise<AiResponse> {
-    const mode = this.getMode();
-    const localSettings = this.getLocalSettings();
+    const creds = await getAiCredentials();
+    const localPrompt = creds.localPrompt?.trim() ?? '';
     const decoratedSystem =
-      mode === 'local' && localSettings.prompt.trim().length
-        ? `${systemContext}\n\n${localSettings.prompt.trim()}`
+      creds.mode === 'local' && localPrompt.length
+        ? `${systemContext}\n\n${localPrompt}`
         : systemContext;
 
-    if (mode === 'local') {
-      return this.chatOllama(userMessage, decoratedSystem, localSettings);
+    if (creds.mode === 'local') {
+      const baseUrl = creds.localBase?.trim() || this.config.baseUrl || DEFAULT_LOCAL_BASE;
+      const model = creds.localModel?.trim() || this.config.model || DEFAULT_LOCAL_MODEL;
+      return this.chatOllama(userMessage, decoratedSystem, { baseUrl, model });
     }
 
-    const key = this.getApiKey();
-    const preferredModel = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.apiModel) : null;
+    const key = creds.apiKey?.trim();
+    const preferredModel = creds.apiModel?.trim();
 
     if (!key) {
       throw new Error("MISSING_API_KEY");
@@ -207,7 +176,7 @@ export class AiService {
   private async chatOllama(
     userMessage: string,
     systemContext: string,
-    overrides?: Pick<LocalSettings, 'baseUrl' | 'model'>,
+    overrides?: { baseUrl?: string; model?: string },
   ): Promise<AiResponse> {
     try {
       const baseUrl = (overrides?.baseUrl ?? this.config.baseUrl ?? DEFAULT_LOCAL_BASE).replace(/\/$/, '');

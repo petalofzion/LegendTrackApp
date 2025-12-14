@@ -19,6 +19,7 @@
   import Mascot from './components/Mascot.svelte';
   import ProgressBar from './components/ProgressBar.svelte';
   import TopicGraph from './components/TopicGraph.svelte';
+  import { ensureAiCredentialsLoaded } from './services/aiConfig';
 
   // State
   let bubblesRef = $state<HTMLDivElement>();
@@ -186,6 +187,7 @@
 
   // Effects
   onMount(() => {
+    ensureAiCredentialsLoaded();
     // Tauri Check
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
       $isTauri = true;
