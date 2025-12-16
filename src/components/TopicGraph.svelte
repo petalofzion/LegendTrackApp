@@ -410,11 +410,6 @@
   $effect(() => {
     if (!cy) return;
     const { elements } = graphData;
-
-    if (elements.length === 0 && cy.nodes().length > 0) {
-        console.warn('Skipping graph update: incoming data is empty.');
-        return; 
-    }
     
     cy.batch(() => {
         const existingNodes = cy!.nodes();
