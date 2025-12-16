@@ -22,6 +22,7 @@
   let localModel = $state(DEFAULT_LOCAL_MODEL);
   let localPrompt = $state('');
   let isLoading = $state(true);
+  let useSecureStorage = $state(false);
 
   // Constants
   const OPENAI_MODELS = ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
@@ -69,6 +70,7 @@
     localBase = creds.localBase;
     localModel = creds.localModel;
     localPrompt = creds.localPrompt;
+    useSecureStorage = creds.storage === 'secure';
   }
 
   // Auto-switch visual default if provider changes and current model mismatches
@@ -95,6 +97,7 @@
       localBase,
       localModel,
       localPrompt,
+      storage: (useSecureStorage ? 'secure' : 'local') as import('../services/aiConfig').StoragePreference,
     };
     await saveAiCredentials(payload);
     triggerConfetti();
@@ -152,6 +155,19 @@
                 <span class="provider-badge" transition:fade>{detectedProvider}</span>
             {/if}
           </div>
+
+          <label class="secure-option">
+            <input type="checkbox" bind:checked={useSecureStorage} />
+            <span class="checkbox-label">
+              Lock in System Keychain? 🔐 
+              <br/>
+              <span class="sub-hint">
+                {useSecureStorage 
+                  ? '(High Security - May prompt for OS password)' 
+                  : '(Standard - Scrambled to trick gremlins 👾)'}
+              </span>
+            </span>
+          </label>
 
           <button class="tuning-toggle" onclick={() => showTuning = !showTuning}>
             {showTuning ? 'Hide Tuning' : 'Tune Spirit? 🔮'}
@@ -345,6 +361,40 @@
     border-color: #f06ea9;
     box-shadow: 0 0 0 4px rgba(240, 110, 169, 0.15);
     transform: scale(1.02);
+  }
+
+  .secure-option {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin: 0.5rem 0 1.2rem;
+    cursor: var(--cursor-paw) !important;
+    text-align: left;
+    padding: 0.5rem 0.8rem;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+    transition: background 0.2s;
+  }
+  .secure-option:hover { background: rgba(255, 255, 255, 0.8); }
+  
+  .secure-option input[type="checkbox"] {
+    accent-color: #f06ea9;
+    width: 1.2rem;
+    height: 1.2rem;
+    cursor: var(--cursor-paw) !important;
+  }
+
+  .checkbox-label {
+    font-size: 0.9rem;
+    color: #8c7ba3;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  
+  .sub-hint {
+    font-size: 0.75rem;
+    color: #b07ac5;
+    font-weight: 400;
   }
 
   .tuning-toggle {
