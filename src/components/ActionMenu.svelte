@@ -1,7 +1,7 @@
 <script lang="ts">
   import { triggerConfetti } from '../utils/confetti';
   import { loadFromFile } from '../services/tracker';
-  import { topics, projects, showApiKeyModal } from '../stores';
+  import { topics, projects, showApiKeyModal, nexusMode, covenMode } from '../stores';
   
   interface Props {
     zenMode: boolean;
@@ -64,6 +64,26 @@
     {zenMode ? '🌸' : '🧘‍♀️'}
   </button>
 
+  <!-- Nexus Toggle -->
+  <button
+    class="action-button nexus-button"
+    onclick={() => $nexusMode = !$nexusMode}
+    title="Toggle Nexus Mode (Keystones)"
+    tabindex={-1}
+  >
+    {$nexusMode ? '👑' : '💎'}
+  </button>
+
+  <!-- Coven Toggle -->
+  <button
+    class="action-button coven-button"
+    onclick={() => $covenMode = !$covenMode}
+    title="Toggle Coven Mode (Clusters)"
+    tabindex={-1}
+  >
+    {$covenMode ? '✨' : '🕸️'}
+  </button>
+
   <!-- Secondary Action (File Select) - Only in Tauri -->
   {#if isTauri}
     <button
@@ -96,3 +116,49 @@
     />
   {/if}
 </div>
+
+<style>
+  /* Nexus Button Styling */
+  .nexus-button {
+    z-index: 2;
+    opacity: 0;
+    transform: scale(0.5);
+    border-color: #c0a3e5;
+    color: #7e57c2;
+  }
+
+  .action-menu:hover .nexus-button,
+  .action-menu.interacting .nexus-button {
+    opacity: 1;
+    transform: translateY(-80px) translateX(60px) scale(1);
+    box-shadow: 0 8px 25px rgba(179, 157, 219, 0.3);
+  }
+
+  .action-menu:hover .nexus-button:hover,
+  .action-menu.interacting .nexus-button:hover {
+    transform: translateY(-80px) translateX(60px) scale(1.1) rotate(10deg);
+    background: #f3e5f5;
+  }
+
+  /* Coven Button Styling */
+  .coven-button {
+    z-index: 3;
+    opacity: 0;
+    transform: scale(0.5);
+    border-color: #ffc4dd;
+    color: #ff5ca8;
+  }
+
+  .action-menu:hover .coven-button,
+  .action-menu.interacting .coven-button {
+    opacity: 1;
+    transform: translateY(-140px) translateX(45px) scale(1);
+    box-shadow: 0 8px 25px rgba(255, 182, 217, 0.3);
+  }
+
+  .action-menu:hover .coven-button:hover,
+  .action-menu.interacting .coven-button:hover {
+    transform: translateY(-140px) translateX(45px) scale(1.1) rotate(-8deg);
+    background: #fff0f5;
+  }
+</style>

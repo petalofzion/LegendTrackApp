@@ -1453,3 +1453,56 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
 .chat-send-btn:active {
   transform: scale(0.95);
 }
+
+/* Quest Button in Mascot Bubble */
+.quest-btn {
+  display: block;
+  margin-top: 0.8rem;
+  width: 100%;
+  background: #fff0f5;
+  border: 2px solid #ff9fdc;
+  border-radius: 12px;
+  color: #d8467a;
+  font-weight: 700;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 10px rgba(240, 110, 169, 0.1);
+}
+.quest-btn:hover {
+  background: #ff9fdc;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(240, 110, 169, 0.25);
+}
+
+/* Header Status Badges */
+.header-status {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.mode-badge {
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.mode-badge.quest { background: #fff8e1; color: #fec107; border: 2px solid #ffe082; }
+.mode-badge.nexus { background: #f3e5f5; color: #8e24aa; border: 2px solid #e1bee7; }
+.mode-badge.coven { background: #e0f7fa; color: #00bcd4; border: 2px solid #b2ebf2; }
+
+.focus-badge {
+  font-size: 0.9rem;
+  color: #9fa0b5;
+}
+.focus-badge strong {
+  color: #f06ea9;
+}

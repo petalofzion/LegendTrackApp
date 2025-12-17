@@ -15,6 +15,8 @@ export const projects = writable<Project[]>([]);
 // UI State
 export const zenMode = writable(false);
 export const raveMode = writable(false);
+export const nexusMode = writable(false);
+export const covenMode = writable(false);
 export const isTauri = writable(false);
 export const trackerPath = writable<string | null>(null);
 export const showApiKeyModal = writable(false); // New Modal State
@@ -29,6 +31,7 @@ export const selectedProjectId = writable<string>('All');
 export const focusedTopic = writable<string | null>(null);
 export const depthStateFilter = writable<'All' | DepthDeltaState>('All');
 export const searchTerm = writable('');
+export const activeQuest = writable<string | null>(null);
 
 // View State
 export const collapsedEpochs = writable<Set<number>>(new Set());

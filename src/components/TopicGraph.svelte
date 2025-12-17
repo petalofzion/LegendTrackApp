@@ -3,11 +3,15 @@
   import cytoscape, { type Core, type EventObjectNode, type Stylesheet, type ElementDefinition } from 'cytoscape';
   import type { Topic } from '../types';
   import { deriveDepthDelta, depthDeltaMessage } from '../utils/depth';
+  import { findQuestPath, calculateCentrality, detectCommunities } from '../services/graphAnalysis';
 
   interface Props {
     topics: Topic[];
     highlightedIds: Set<string>;
     focusedTopicId?: string | null;
+    activeQuestId?: string | null;
+    nexusMode?: boolean;
+    covenMode?: boolean;
     onSelectTopic?: (topicId: string) => void;
     searchTerm?: string;
   }
@@ -16,6 +20,9 @@
     topics, 
     highlightedIds, 
     focusedTopicId = null, 
+    activeQuestId = null,
+    nexusMode = false,
+    covenMode = false,
     onSelectTopic, 
     searchTerm = '' 
   }: Props = $props();
@@ -266,6 +273,22 @@
       { selector: 'node[depthState = "on-track"]', style: {} },
       { selector: 'node[depthState = "ahead"]', style: {} },
       { selector: 'node[depthState = "unset"]', style: {} },
+
+      // Coven Mode (Clustering)
+      { selector: 'node[covenState = "active"]', style: { 'background-color': 'data(communityColor)', 'border-width': 0, 'opacity': 0.9 } },
+
+      // Nexus Mode Styles
+      { selector: 'node[nexusState = "keystone"]', style: { 'border-width': 8, 'border-color': '#c0a3e5', 'width': 80, 'height': 80, 'font-weight': 'bold', 'z-index': 850 } },
+      { selector: 'node[nexusState = "dim"]', style: { 'opacity': 0.3, 'grayscale': 1, 'z-index': 1 } },
+      { selector: 'edge[nexusState = "dim"]', style: { 'opacity': 0.1, 'z-index': 0 } },
+
+      // Quest Mode Styles
+      { selector: 'node[questState = "active"]', style: { 'border-color': '#ffe082', 'border-width': 5, 'background-color': '#fff8e1', 'z-index': 800 } },
+      { selector: 'node[questState = "target"]', style: { 'border-color': '#ffca28', 'border-width': 7, 'background-color': '#fff3e0', 'width': 74, 'height': 74, 'z-index': 900 } },
+      { selector: 'node[questState = "dim"]', style: { 'opacity': 0.15, 'z-index': 1 } },
+      { selector: 'edge[questState = "active"]', style: { 'line-color': '#ffe082', 'width': 5, 'line-style': 'dashed', 'target-arrow-color': '#ffe082', 'opacity': 1, 'z-index': 800 } },
+      { selector: 'edge[questState = "dim"]', style: { 'opacity': 0.05, 'z-index': 0 } },
+
       {
         selector: 'edge',
         style: {
@@ -551,6 +574,14 @@
             let targetOp = node.data('targetOpacity');
             if (typeof targetOp !== 'number') targetOp = 1.0;
 
+            if (node.data('questState') === 'dim') {
+                targetOp = 0.1;
+            }
+
+            if (node.data('nexusState') === 'dim') {
+                targetOp = 0.3;
+            }
+
             if (Math.abs(currentOp - targetOp) > 0.01) {
                 active = true;
                 const nextOp = currentOp + (targetOp - currentOp) * 0.05; // 0.05 = Very smooth/slow
@@ -574,6 +605,83 @@
     return () => {
         if (loopRaf) cancelAnimationFrame(loopRaf);
     };
+  });
+
+  // Coven Mode Logic
+  $effect(() => {
+    if (!cy) return;
+
+    if (covenMode) {
+      detectCommunities(cy);
+    }
+
+    cy.batch(() => {
+      if (!covenMode) {
+        cy!.elements().removeData('covenState');
+      } else {
+        cy!.nodes().forEach(n => {
+          if (n.data('communityColor')) {
+            n.data('covenState', 'active');
+          }
+        });
+      }
+    });
+  });
+
+  // Nexus Mode Logic
+  $effect(() => {
+    if (!cy) return;
+    
+    if (nexusMode) {
+       calculateCentrality(cy);
+    }
+
+    cy.batch(() => {
+      if (!nexusMode) {
+        cy!.elements().removeData('nexusState');
+      } else {
+        cy!.nodes().forEach(n => {
+          if (n.data('isKeystone')) {
+            n.data('nexusState', 'keystone');
+          } else {
+            n.data('nexusState', 'dim');
+          }
+        });
+        cy!.edges().forEach(e => e.data('nexusState', 'dim'));
+      }
+    });
+  });
+
+  // Quest Mode Logic
+  $effect(() => {
+    if (!cy) return;
+
+    cy.batch(() => {
+      if (!activeQuestId) {
+        // Clear Quest State
+        cy!.elements().removeData('questState');
+      } else {
+        const { nodeIds, edgeIds } = findQuestPath(cy!, activeQuestId);
+        
+        cy!.nodes().forEach(n => {
+          if (n.id() === activeQuestId) {
+            n.data('questState', 'target');
+          } else if (nodeIds.has(n.id())) {
+            n.data('questState', 'active');
+          } else {
+            n.data('questState', 'dim');
+          }
+        });
+
+        cy!.edges().forEach(e => {
+          if (edgeIds.has(e.id())) {
+            e.data('questState', 'active');
+          } else {
+            e.data('questState', 'dim');
+          }
+        });
+      }
+    });
   });
 
   // Mount

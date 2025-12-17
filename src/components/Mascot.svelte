@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import type { Topic } from '../types';
   import { serializeContext, ai } from '../services/ai';
+  import { activeQuest } from '../stores';
   import { aiCredentials, ensureAiCredentialsLoaded, hasHostedApiKey } from '../services/aiConfig';
 
   type MascotMood = 'idle' | 'happy' | 'excited' | 'sleepy' | 'tickled' | 'bonked' | 'patted' | 'hugged' | 'thinking';
@@ -651,7 +652,21 @@
   </div>
   
   <div class="mascot-desc-bubble" class:visible={!!topicExplanation}>
-    {#if topicExplanation}<span>{topicExplanation}</span>{/if}
+    {#if topicExplanation}
+      <span>{topicExplanation}</span>
+      {#if focusedTopic}
+        <button 
+          class="quest-btn" 
+          onclick={(e) => { 
+             e.stopPropagation(); 
+             if ($activeQuest === focusedTopic?.id) $activeQuest = null;
+             else if (focusedTopic?.id) $activeQuest = focusedTopic.id;
+          }}
+        >
+          {$activeQuest === focusedTopic?.id ? 'End Quest ❌' : 'Start Quest 🗺️'}
+        </button>
+      {/if}
+    {/if}
   </div>
 
   <div class="mascot-chat-bubble" class:visible={chatOpen}>

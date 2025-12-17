@@ -3,7 +3,7 @@
   import { 
     topics, projects, filters, selectedProjectId, focusedTopic, 
     depthStateFilter, searchTerm, collapsedEpochs, zenMode, 
-    updatingTopics, raveMode, isTauri, trackerPath
+    updatingTopics, raveMode, isTauri, trackerPath, activeQuest, nexusMode, covenMode
   } from './stores';
   import { loadData, updateTopic, selectTrackerFile, getTrackerPath, startWatching, stopWatching, type TopicUpdatePayload } from './services/tracker';
   import { deriveDepthDelta, depthDeltaMessage, type DepthDeltaState, type DepthDelta } from './utils/depth';
@@ -423,7 +423,19 @@
                 <h2>Constellation Map</h2>
                 <p>Nodes placed by Pathway (X) and Chapter (Y). Click for details.</p>
               </div>
-              {#if $focusedTopic}<span>Focused: {$focusedTopic}</span>{/if}
+              <div class="header-status">
+                {#if $activeQuest}
+                  <span class="mode-badge quest">Quest Active 🗺️</span>
+                {:else if $nexusMode}
+                  <span class="mode-badge nexus">Nexus Mode 👑</span>
+                {:else if $covenMode}
+                  <span class="mode-badge coven">Coven Mode ✨</span>
+                {/if}
+                
+                {#if $focusedTopic}
+                  <span class="focus-badge">Focused: <strong>{$focusedTopic}</strong></span>
+                {/if}
+              </div>
             </div>
             <div class="depth-legend">
               {#each Object.keys(depthStateLabels) as state}
@@ -453,6 +465,9 @@
               topics={constellationFilteredTopics}
               highlightedIds={highlightedIds}
               focusedTopicId={$focusedTopic}
+              activeQuestId={$activeQuest}
+              nexusMode={$nexusMode}
+              covenMode={$covenMode}
               onSelectTopic={(id) => $focusedTopic = id}
               searchTerm={$searchTerm}
             />
