@@ -31,12 +31,19 @@
 
   function handleSelect(val: string) {
     if (disabled) return;
-    onChange(val);
+    try {
+      onChange(val);
+    } catch (e) {
+      console.error('Select change error:', e);
+    }
     isOpen = false;
   }
 
-  // Window listener for click outside
-  // Svelte special element <svelte:window> makes this cleaner
+  function toggleOpen(event: MouseEvent) {
+    if (disabled) return;
+    event.stopPropagation();
+    isOpen = !isOpen;
+  }
 </script>
 
 <svelte:window onclick={handleClickOutside} />
@@ -50,7 +57,7 @@
   <button
     type="button"
     class="cute-select-trigger"
-    onclick={() => !disabled && (isOpen = !isOpen)}
+    onclick={toggleOpen}
     {disabled}
   >
     <span class="current-value">{displayLabel}</span>

@@ -399,9 +399,13 @@
     updateFade(key);
   };
 
-  // Effect: Update refs for logic loop
+  // Effect: Update refs for logic loop & Conditional Reset
   $effect(() => {
     clusterCentersRef = graphData.clusterCenters;
+    // Safety: Only collapse if the currently expanded cluster no longer exists
+    if (expandedCluster && !clusterCentersRef.has(expandedCluster)) {
+        setExpandedCluster(null);
+    }
   });
 
   // Effect: Idle collapse (Optional safety net, kept for now)

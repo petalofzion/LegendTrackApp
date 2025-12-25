@@ -370,15 +370,15 @@
       <div class="filters">
         <label>
           Pathway
-          <CuteSelect value={$filters.track} options={trackOptions} onChange={(v) => $filters.track = v} />
+          <CuteSelect value={$filters.track} options={trackOptions} onChange={(v) => $filters = { ...$filters, track: v }} />
         </label>
         <label>
           Aura
-          <CuteSelect value={$filters.status} options={statusOptions} onChange={(v) => $filters.status = v} />
+          <CuteSelect value={$filters.status} options={statusOptions} onChange={(v) => $filters = { ...$filters, status: v }} />
         </label>
         <label>
           Spirit Level
-          <CuteSelect value={$filters.depth} options={depthOptions} onChange={(v) => $filters.depth = v} />
+          <CuteSelect value={$filters.depth} options={depthOptions} onChange={(v) => $filters = { ...$filters, depth: v }} />
         </label>
         <label>
           Crystal Scry
