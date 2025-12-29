@@ -3,7 +3,7 @@
   import { 
     topics, projects, filters, selectedProjectId, focusedTopic, 
     depthStateFilter, searchTerm, collapsedEpochs, zenMode, 
-    updatingTopics, raveMode, isTauri, trackerPath
+    updatingTopics, raveMode, isTauri, trackerPath, activeQuest, nexusMode, covenMode
   } from './stores';
   import { loadData, updateTopic, selectTrackerFile, getTrackerPath, startWatching, stopWatching, type TopicUpdatePayload } from './services/tracker';
   import { deriveDepthDelta, depthDeltaMessage, type DepthDeltaState, type DepthDelta } from './utils/depth';
@@ -12,12 +12,14 @@
 
   // Components
   import ActionMenu from './components/ActionMenu.svelte';
+  import ApiKeyModal from './components/ApiKeyModal.svelte'; // New Component
   import ClickSparkles from './components/ClickSparkles.svelte';
   import CuteSelect from './components/CuteSelect.svelte';
   import EmptyState from './components/EmptyState.svelte';
   import Mascot from './components/Mascot.svelte';
   import ProgressBar from './components/ProgressBar.svelte';
   import TopicGraph from './components/TopicGraph.svelte';
+  import { ensureAiCredentialsLoaded } from './services/aiConfig';
 
   // State
   let bubblesRef = $state<HTMLDivElement>();
@@ -185,6 +187,7 @@
 
   // Effects
   onMount(() => {
+    ensureAiCredentialsLoaded();
     // Tauri Check
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
       $isTauri = true;
@@ -313,12 +316,14 @@
   </div>
 {:else}
   <div class="app" class:zen-active={$zenMode} class:rave-active={$raveMode} use:kineticScroll>
+    <ApiKeyModal />
     <ClickSparkles />
     <Mascot 
       mood={$focusedTopic ? 'happy' : 'idle'} 
       triggerKey={$focusedTopic} 
       zenMode={$zenMode} 
       focusedTopic={focusedTopicObj}
+      onClearFocus={() => $focusedTopic = null}
     />
     
     <ActionMenu 
@@ -365,15 +370,15 @@
       <div class="filters">
         <label>
           Pathway
-          <CuteSelect value={$filters.track} options={trackOptions} onChange={(v) => $filters.track = v} />
+          <CuteSelect value={$filters.track} options={trackOptions} onChange={(v) => $filters = { ...$filters, track: v }} />
         </label>
         <label>
           Aura
-          <CuteSelect value={$filters.status} options={statusOptions} onChange={(v) => $filters.status = v} />
+          <CuteSelect value={$filters.status} options={statusOptions} onChange={(v) => $filters = { ...$filters, status: v }} />
         </label>
         <label>
           Spirit Level
-          <CuteSelect value={$filters.depth} options={depthOptions} onChange={(v) => $filters.depth = v} />
+          <CuteSelect value={$filters.depth} options={depthOptions} onChange={(v) => $filters = { ...$filters, depth: v }} />
         </label>
         <label>
           Crystal Scry
@@ -418,7 +423,19 @@
                 <h2>Constellation Map</h2>
                 <p>Nodes placed by Pathway (X) and Chapter (Y). Click for details.</p>
               </div>
-              {#if $focusedTopic}<span>Focused: {$focusedTopic}</span>{/if}
+              <div class="header-status">
+                {#if $activeQuest}
+                  <span class="mode-badge quest">Quest Active 🗺️</span>
+                {:else if $nexusMode}
+                  <span class="mode-badge nexus">Nexus Mode 👑</span>
+                {:else if $covenMode}
+                  <span class="mode-badge coven">Coven Mode ✨</span>
+                {/if}
+                
+                {#if $focusedTopic}
+                  <span class="focus-badge">Focused: <strong>{$focusedTopic}</strong></span>
+                {/if}
+              </div>
             </div>
             <div class="depth-legend">
               {#each Object.keys(depthStateLabels) as state}
@@ -448,6 +465,9 @@
               topics={constellationFilteredTopics}
               highlightedIds={highlightedIds}
               focusedTopicId={$focusedTopic}
+              activeQuestId={$activeQuest}
+              nexusMode={$nexusMode}
+              covenMode={$covenMode}
               onSelectTopic={(id) => $focusedTopic = id}
               searchTerm={$searchTerm}
             />
@@ -484,6 +504,7 @@
                      {#each epoch.topics as topic (topic.id)}
                        {@const delta = renderDepthDelta(topic)}
                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                       <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
                        <article
                          class="topic-card"
                          class:highlighted={highlightedIds.has(topic.id)}

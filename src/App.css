@@ -1,9 +1,99 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Chewy&family=Fredoka:wght@300;400;500;600&display=swap');
+/* @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Chewy&family=Fredoka:wght@300;400;500;600&display=swap'); */
+
+@font-face {
+  font-family: 'Chewy';
+  font-style: normal;
+  font-weight: 400;
+  src: url('./assets/fonts/Chewy-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 300;
+  src: url('./assets/fonts/Fredoka-300.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 400;
+  src: url('./assets/fonts/Fredoka-400.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 500;
+  src: url('./assets/fonts/Fredoka-500.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 600;
+  src: url('./assets/fonts/Fredoka-600.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 400;
+  src: url('./assets/fonts/Nunito-400.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 500;
+  src: url('./assets/fonts/Nunito-500.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 600;
+  src: url('./assets/fonts/Nunito-600.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 700;
+  src: url('./assets/fonts/Nunito-700.ttf') format('truetype');
+}
+
 
 :root {
-  /* Fallback to emoji cursor if image is missing */
-  --cursor-paw: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'  width='40' height='48' viewport='0 0 100 100' style='fill:black;font-size:24px;'><text y='50%'>🐾</text></svg>") 16 0, auto; 
+  /* No-gap chubby paw: Toes moved down to touch the main pad for a unified shape */
+  --cursor-paw: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" style="filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.15));"><g fill="%23FFB6C1" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="7" cy="17" rx="3.5" ry="4.5" transform="rotate(-30, 7, 17)" /><ellipse cx="14" cy="13" rx="4" ry="5" transform="rotate(-10, 14, 13)" /><ellipse cx="22" cy="13" rx="4" ry="5" transform="rotate(10, 22, 13)" /><ellipse cx="29" cy="17" rx="3.5" ry="4.5" transform="rotate(30, 29, 17)" /><path d="M18 32 C 12 32 8 27 8 22 C 8 19 11 17 13 18 C 15 19 16 20 18 18 C 20 20 21 19 23 18 C 25 17 28 19 28 22 C 28 27 24 32 18 32 Z" /></g></svg>') 18 18, auto;
   --cursor-paw-pointer: pointer;
+}
+
+/* =========================================
+   0. GLOBAL SCROLLBAR (Ultimate Jellybean)
+   ========================================= */
+
+::-webkit-scrollbar {
+  width: 16px; /* Wide hit area */
+}
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #f06ea9;
+  background-image: linear-gradient(135deg, #ffe6f2 0%, #ff9fdc 30%, #f06ea9 100%); /* Glossy Shine */
+  border-radius: 20px;
+  border: 4px solid transparent; /* The invisible spacer */
+  background-clip: content-box; /* Only paint the inside of the border */
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4); /* Subtle glass rim */
+}
+::-webkit-scrollbar-thumb:hover {
+  background-image: linear-gradient(135deg, #fff0f8 0%, #ffbde4 30%, #ff5ca8 100%);
+  border: 3px solid transparent; /* Grow slightly (1px larger) */
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6);
+}
+
+/* Force Cursor on Interactive Elements & Scrollbars */
+button, a, input, select, textarea, 
+::-webkit-scrollbar, ::-webkit-scrollbar-thumb, ::-webkit-scrollbar-track,
+.app::-webkit-scrollbar, .app::-webkit-scrollbar-thumb, .app::-webkit-scrollbar-track,
+[role="button"] {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" style="filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.15));"><g fill="%23FFB6C1" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="7" cy="17" rx="3.5" ry="4.5" transform="rotate(-30, 7, 17)" /><ellipse cx="14" cy="13" rx="4" ry="5" transform="rotate(-10, 14, 13)" /><ellipse cx="22" cy="13" rx="4" ry="5" transform="rotate(10, 22, 13)" /><ellipse cx="29" cy="17" rx="3.5" ry="4.5" transform="rotate(30, 29, 17)" /><path d="M18 32 C 12 32 8 27 8 22 C 8 19 11 17 13 18 C 15 19 16 20 18 18 C 20 20 21 19 23 18 C 25 17 28 19 28 22 C 28 27 24 32 18 32 Z" /></g></svg>') 18 18, auto !important;
 }
 
 /* =========================================
@@ -15,7 +105,7 @@ html, body {
   margin: 0;
   padding: 0;
   overflow: hidden; /* Hide window scrollbar, let .app scroll */
-  cursor: var(--cursor-paw);
+  cursor: var(--cursor-paw) !important;
 }
 
 #root {
@@ -41,7 +131,7 @@ html, body {
   padding: 2.8rem;
   font-family: 'Nunito', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
-  cursor: var(--cursor-paw);
+  cursor: var(--cursor-paw) !important;
 }
 
 .content-layout {
@@ -863,7 +953,7 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
   width: 120px;
   height: 120px;
   filter: drop-shadow(0 5px 15px rgba(0,0,0,0.2));
-  cursor: var(--cursor-paw);
+  cursor: var(--cursor-paw) !important;
   pointer-events: auto;
   transition: transform 0.2s;
   will-change: transform;
@@ -874,14 +964,14 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
   position: fixed;
   z-index: 100;
   pointer-events: auto;
-  cursor: var(--cursor-paw);
+  cursor: var(--cursor-paw) !important;
   touch-action: none;
   user-select: none;
 }
 .mascot-container *,
 .mascot-container.dragging,
 .mascot-container.dragging * {
-  cursor: var(--cursor-paw);
+  cursor: var(--cursor-paw) !important;
 }
 .mascot-bubble {
   position: absolute;
@@ -905,6 +995,7 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
   opacity: 0;
   transform: translate3d(0, 6px, 0) scale(0.94);
   transition: opacity 0.16s ease, transform 0.16s ease;
+  z-index: 2000; /* Higher than chat bubble */
 }
 
 .mascot-bubble.visible {
@@ -961,22 +1052,49 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
   transform: scale(0.5);
 }
 
-/* Hover State for Container */
-.action-menu:hover {
-  /* Expand the hit area upwards so we don't lose hover when moving to the file button */
-  height: 150px; 
+/* Tertiary Button (API Key) */
+.api-button {
+  z-index: 0;
+  opacity: 0;
+  transform: scale(0.5);
+  border-color: #b39ddb; /* Crystal Purple */
+  color: #673ab7;
 }
 
-.action-menu:hover .file-button {
+/* Hover State for Container */
+.action-menu:hover,
+.action-menu.interacting {
+  /* Expand the hit area upwards so we don't lose hover when moving to the buttons */
+  height: 220px; 
+}
+
+.action-menu:hover .file-button,
+.action-menu.interacting .file-button {
   opacity: 1;
-  transform: translateY(-80px) scale(1); /* Pop up */
+  transform: translateY(-80px) scale(1); /* Pop up level 1 */
   box-shadow: 0 8px 25px rgba(100, 100, 200, 0.25);
   border-color: #b0d7ff;
 }
 
-.action-menu:hover .file-button:hover {
+.action-menu:hover .api-button,
+.action-menu.interacting .api-button {
+  opacity: 1;
+  transform: translateY(-150px) scale(1); /* Pop up level 2 */
+  box-shadow: 0 8px 25px rgba(149, 117, 205, 0.35);
+  transition-delay: 0.05s; /* Slight staggered delay */
+}
+
+.action-menu:hover .file-button:hover,
+.action-menu.interacting .file-button:hover {
   transform: translateY(-80px) scale(1.1) rotate(-10deg);
   background: #f0f8ff;
+}
+
+.action-menu:hover .api-button:hover,
+.action-menu.interacting .api-button:hover {
+  transform: translateY(-150px) scale(1.1) rotate(10deg);
+  background: #f3e5f5;
+  border-color: #9575cd;
 }
 
 /* Zen Mode Adjustments for the Menu */
@@ -1151,14 +1269,240 @@ body:has(.zen-active) ::-webkit-scrollbar-thumb {
   pointer-events: auto;
 }
 
-.mascot-desc-bubble::after {
-  content: '';
+/* Grimoire Chat Bubble (Matches Description Bubble Position) */
+.mascot-chat-bubble {
   position: absolute;
-  bottom: 0;
-  right: -40px; /* Pushed further out */
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 20px 0 0 40px; /* Elongated pointer */
-  border-color: transparent transparent transparent #f06ea9;
+  bottom: 45px;
+  right: 180%; /* Shifted further left */
+  width: 340px; /* Slightly wider */
+  background: rgba(255, 255, 255, 0.98);
+  border: 3px solid #f06ea9;
+  border-radius: 20px 20px 0 20px; /* Bubble pointing right */
+  box-shadow: 0 10px 30px rgba(240, 110, 169, 0.25);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(20px) scale(0.9);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.mascot-chat-bubble.visible {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  pointer-events: auto;
+}
+
+/* Chat Header */
+.chat-header {
+  padding: 12px 16px;
+  background: rgba(255, 245, 251, 0.8);
+  border-bottom: 2px solid #ffe6f2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 800;
+  color: #d45d9e;
+  font-size: 1rem;
+  font-family: 'Fredoka', cursive;
+  letter-spacing: 0.05em;
+}
+
+.chat-close {
+  background: transparent;
+  border: none;
+  color: #ff9fdc;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.2s;
+}
+
+.chat-close:hover {
+  color: #ff5ca8;
+  transform: scale(1.2) rotate(90deg);
+}
+
+/* Chat History */
+.chat-history {
+  padding: 12px;
+  max-height: 280px; /* Taller history */
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+/* Scrollbar for chat history */
+.chat-history::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-history::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-history::-webkit-scrollbar-thumb {
+  background: #ffc4dd; /* Solid Minimal Pink */
+  border-radius: 4px;
+  border: none; /* No gummy border */
+  box-shadow: none; /* No gummy shine */
+}
+.chat-history::-webkit-scrollbar-thumb:hover {
+  background: #f06ea9;
+}
+
+.chat-row {
+  display: flex;
+  width: 100%;
+}
+
+.chat-row.user {
+  justify-content: flex-end;
+}
+
+.chat-text {
+  padding: 8px 12px;
+  border-radius: 16px;
+  max-width: 88%;
+  line-height: 1.4;
+  word-wrap: break-word;
+  font-size: 0.9rem;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.chat-row.user .chat-text {
+  background: linear-gradient(135deg, #ffbadb, #f06ea9);
+  color: white;
+  border-bottom-right-radius: 2px;
+  font-weight: 600;
+}
+
+.chat-row:not(.user) .chat-text {
+  background: white;
+  border: 2px solid #e0e0e0;
+  color: #51385d;
+  border-bottom-left-radius: 2px;
+}
+
+.chat-row.ai.thinking {
+  color: #999;
+  font-style: italic;
+  font-size: 0.85rem;
+  padding-left: 12px;
+}
+
+/* Input Area */
+.chat-input-row {
+  padding: 10px 12px;
+  border-top: 2px solid #ffe6f2;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  background: rgba(255, 250, 253, 0.9);
+}
+
+.chat-input-row textarea {
+  flex: 1;
+  border: 2px solid #ffc4dd;
+  border-radius: 16px;
+  padding: 8px 12px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6b5b95;
+  resize: none;
+  height: 38px;
+  outline: none;
+  transition: all 0.2s;
+  background: white;
+}
+
+.chat-input-row textarea:focus {
+  border-color: #f06ea9;
+  box-shadow: 0 0 0 3px rgba(240, 110, 169, 0.1);
+}
+
+.chat-input-row textarea::placeholder {
+  color: #ffc4dd;
+}
+
+.chat-send-btn {
+  background: linear-gradient(135deg, #ff9fdc, #f06ea9);
+  color: white;
+  border: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  box-shadow: 0 4px 10px rgba(240, 110, 169, 0.3);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.chat-send-btn:hover {
+  transform: scale(1.1) rotate(-5deg);
+}
+
+.chat-send-btn:active {
+  transform: scale(0.95);
+}
+
+/* Quest Button in Mascot Bubble */
+.quest-btn {
+  display: block;
+  margin-top: 0.8rem;
+  width: 100%;
+  background: #fff0f5;
+  border: 2px solid #ff9fdc;
+  border-radius: 12px;
+  color: #d8467a;
+  font-weight: 700;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 10px rgba(240, 110, 169, 0.1);
+}
+.quest-btn:hover {
+  background: #ff9fdc;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(240, 110, 169, 0.25);
+}
+
+/* Header Status Badges */
+.header-status {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.mode-badge {
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.mode-badge.quest { background: #fff8e1; color: #fec107; border: 2px solid #ffe082; }
+.mode-badge.nexus { background: #f3e5f5; color: #8e24aa; border: 2px solid #e1bee7; }
+.mode-badge.coven { background: #e0f7fa; color: #00bcd4; border: 2px solid #b2ebf2; }
+
+.focus-badge {
+  font-size: 0.9rem;
+  color: #9fa0b5;
+}
+.focus-badge strong {
+  color: #f06ea9;
 }

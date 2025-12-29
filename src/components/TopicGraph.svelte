@@ -3,11 +3,15 @@
   import cytoscape, { type Core, type EventObjectNode, type Stylesheet, type ElementDefinition } from 'cytoscape';
   import type { Topic } from '../types';
   import { deriveDepthDelta, depthDeltaMessage } from '../utils/depth';
+  import { findQuestPath, calculateCentrality, detectCommunities } from '../services/graphAnalysis';
 
   interface Props {
     topics: Topic[];
     highlightedIds: Set<string>;
     focusedTopicId?: string | null;
+    activeQuestId?: string | null;
+    nexusMode?: boolean;
+    covenMode?: boolean;
     onSelectTopic?: (topicId: string) => void;
     searchTerm?: string;
   }
@@ -16,6 +20,9 @@
     topics, 
     highlightedIds, 
     focusedTopicId = null, 
+    activeQuestId = null,
+    nexusMode = false,
+    covenMode = false,
     onSelectTopic, 
     searchTerm = '' 
   }: Props = $props();
@@ -30,6 +37,7 @@
   };
 
   const clampValue = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+  const escapeSelector = (str: string) => str.replace(/([!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~])/g, '\\$1');
 
   let containerRef: HTMLDivElement;
   let graphContainer: HTMLDivElement;
@@ -65,19 +73,18 @@
   const maxZoom = 2.2;
 
   // Refs (Variables) for logic loop
+  let tooltipTimer: ReturnType<typeof setTimeout> | null = null;
   let collapseTimeout: ReturnType<typeof setTimeout> | null = null;
   let idleCollapseTimeout: ReturnType<typeof setTimeout> | null = null;
   let prevExpandedCluster: string | null = null;
-  let pointerInsideCluster = false;
   let pointerOverNode = false; // New flag to track direct node interaction
   let pointerPosition: { x: number; y: number } | null = null;
-  let lastPointerCluster: string | null = null;
   let pointerMoveRaf: number | null = null;
   let pendingPointerEvent: MouseEvent | null = null;
-  let reconcileRaf: number | null = null;
   let initialFitDone = false;
   let clusterCentersRef: Map<string, any> = new Map();
   let expandedClusterRef: string | null = null;
+  let hideTooltipTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // --- Derived Calculations ---
 
@@ -126,7 +133,6 @@
 
   // Graph Data Calculation
   let graphData = $derived.by(() => {
-    console.log('GraphData Calc: Topics count:', topics.length);
     const clusterCenters = new Map<string, { centerX: number; centerY: number; baseRadius: number; expandedRadius: number }>();
     const bucketCounts = new Map<string, number>();
     topics.forEach(t => {
@@ -164,7 +170,7 @@
       const baseY = centerY + deltaY;
       const expandedX = centerX + Math.cos(radialAngle || 0) * expansionDistance;
       const expandedY = centerY + Math.sin(radialAngle || 0) * expansionDistance;
-      const holdRadius = expansionDistance + 20;
+      const holdRadius = expansionDistance; // Tighter radius for snappier collapse
       const baseHitRadius = radius + hoverRepelDistance;
       const expandedHitRadius = holdRadius;
 
@@ -250,13 +256,12 @@
           'text-wrap': 'wrap', 'text-valign': 'center', 'text-halign': 'center', 'text-max-width': 52,
           'font-size': 9, color: '#51385d',
           'overlay-opacity': 0, 'overlay-padding': 24,
-          'transition-property': 'background-color, border-width, border-color, opacity',
-          'transition-duration': 320, 'transition-timing-function': 'ease-in-out',
+          'transition-property': 'background-color, border-width, border-color',
+          'transition-duration': 200, 'transition-timing-function': 'ease-in-out',
           'z-index-compare': 'manual', 'z-index': 2,
         }
       },
       { selector: 'node.cluster-expanded', style: { 'z-index': 999 } },
-      { selector: 'node.neighbor-repelled', style: { opacity: 0.18 } },
       { selector: 'node[searchDim = 1]', style: { opacity: 0.1, 'border-color': '#e0e0e0', 'z-index': 0 } },
       { selector: 'node[status = "Mastered"]', style: { 'background-color': pastelPalette.mastered, 'border-color': '#65c7ab' } },
       { selector: 'node[status = "Stable"]', style: { 'background-color': pastelPalette.stable, 'border-color': '#f0b85d' } },
@@ -268,6 +273,22 @@
       { selector: 'node[depthState = "on-track"]', style: {} },
       { selector: 'node[depthState = "ahead"]', style: {} },
       { selector: 'node[depthState = "unset"]', style: {} },
+
+      // Coven Mode (Clustering)
+      { selector: 'node[covenState = "active"]', style: { 'background-color': 'data(communityColor)', 'border-width': 0, 'opacity': 0.9 } },
+
+      // Nexus Mode Styles
+      { selector: 'node[nexusState = "keystone"]', style: { 'border-width': 8, 'border-color': '#c0a3e5', 'width': 80, 'height': 80, 'font-weight': 'bold', 'z-index': 850 } },
+      { selector: 'node[nexusState = "dim"]', style: { 'opacity': 0.3, 'grayscale': 1, 'z-index': 1 } },
+      { selector: 'edge[nexusState = "dim"]', style: { 'opacity': 0.1, 'z-index': 0 } },
+
+      // Quest Mode Styles
+      { selector: 'node[questState = "active"]', style: { 'border-color': '#ffe082', 'border-width': 5, 'background-color': '#fff8e1', 'z-index': 800 } },
+      { selector: 'node[questState = "target"]', style: { 'border-color': '#ffca28', 'border-width': 7, 'background-color': '#fff3e0', 'width': 74, 'height': 74, 'z-index': 900 } },
+      { selector: 'node[questState = "dim"]', style: { 'opacity': 0.15, 'z-index': 1 } },
+      { selector: 'edge[questState = "active"]', style: { 'line-color': '#ffe082', 'width': 5, 'line-style': 'dashed', 'target-arrow-color': '#ffe082', 'opacity': 1, 'z-index': 800 } },
+      { selector: 'edge[questState = "dim"]', style: { 'opacity': 0.05, 'z-index': 0 } },
+
       {
         selector: 'edge',
         style: {
@@ -310,37 +331,84 @@
   }
 
   // Animation & Interaction Logic (Ported from React useEffects)
-  function queueCollapse() {
-    if (collapseTimeout) return;
-    collapseTimeout = setTimeout(() => {
-      const currentKey = expandedClusterRef;
-      const pointer = pointerPosition;
-      const centers = clusterCentersRef;
-      let shouldCollapse = !pointerInsideCluster;
+  const updateFade = (key: string | null) => {
+      if (!cy) return;
+      
+      // Safety: Ensure key matches at least one node
+      if (key) {
+          const hasMatch = cy.nodes().some(n => n.data('clusterKey') === key);
+          if (!hasMatch) key = null;
+      }
 
-      if (currentKey && pointer) {
-        const meta = centers.get(currentKey);
-        if (meta) {
-          const dist = Math.hypot(pointer.x - meta.centerX, pointer.y - meta.centerY);
-          if (dist <= meta.expandedRadius + hoverGraceDistance) shouldCollapse = false;
+      cy.batch(() => {
+          cy.nodes().forEach(node => {
+              const nodeKey = node.data('clusterKey');
+              if (key && nodeKey !== key) {
+                  // Fade out target
+                  node.data('targetOpacity', 0.18);
+              } else {
+                  // Reset target
+                  node.data('targetOpacity', 1.0);
+              }
+          });
+      });
+  };
+
+  const setExpandedCluster = (key: string | null) => {
+    // If switching clusters, kill any lingering tooltip from the old cluster
+    if (key !== expandedCluster) {
+        tooltip.visible = false;
+        if (hideTooltipTimeout) clearTimeout(hideTooltipTimeout);
+        if (tooltipTimer) clearTimeout(tooltipTimer);
+    }
+
+    expandedCluster = key;
+    expandedClusterRef = key;
+    
+    // Manage Safe Zone Plate
+    if (cy) {
+        const safeZone = cy.getElementById('safe-zone');
+        if (safeZone.length > 0) cy.remove(safeZone);
+
+        if (key) {
+            const meta = clusterCentersRef.get(key);
+            if (meta) {
+                // Spawn invisible plate to handle hit-testing
+                cy.add({
+                    group: 'nodes',
+                    data: { 
+                        id: 'safe-zone', 
+                        clusterKey: key, 
+                        isSafeZone: true 
+                    },
+                    position: { x: meta.centerX, y: meta.centerY },
+                    style: {
+                        width: (meta.expandedRadius + hoverGraceDistance) * 2 + 50, 
+                        height: (meta.expandedRadius + hoverGraceDistance) * 2 + 50,
+                        'background-opacity': 0, // Invisible background
+                        'border-width': 0,       // No border
+                        'z-index': 1, 
+                        'events': 'yes' 
+                    }
+                });
+            }
         }
-      }
+    }
 
-      if (shouldCollapse) {
-        expandedCluster = null;
-        lastPointerCluster = null;
-      }
-      collapseTimeout = null;
-    }, collapseDelayMs);
-  }
+    // Immediate Visual Update (Idempotent to fix stuck fades)
+    updateFade(key);
+  };
 
-  // Effect: Update refs for logic loop
+  // Effect: Update refs for logic loop & Conditional Reset
   $effect(() => {
     clusterCentersRef = graphData.clusterCenters;
-    expandedClusterRef = expandedCluster;
+    // Safety: Only collapse if the currently expanded cluster no longer exists
+    if (expandedCluster && !clusterCentersRef.has(expandedCluster)) {
+        setExpandedCluster(null);
+    }
   });
 
-  // Effect: Idle collapse
+  // Effect: Idle collapse (Optional safety net, kept for now)
   $effect(() => {
     if (idleCollapseTimeout) {
       clearTimeout(idleCollapseTimeout);
@@ -357,10 +425,10 @@
       const meta = centers.get(currentKey);
       if (!meta) return;
       const dist = Math.hypot(pointer.x - meta.centerX, pointer.y - meta.centerY);
-      if (dist > meta.expandedRadius + hoverGraceDistance) {
-        pointerInsideCluster = false;
-        lastPointerCluster = null;
-        expandedCluster = null;
+      
+      // Safety net: If mouse is inexplicably far, collapse
+      if (dist > meta.expandedRadius + hoverGraceDistance + 100) {
+        setExpandedCluster(null);
       }
     }, collapseDelayMs);
   });
@@ -369,12 +437,6 @@
   $effect(() => {
     if (!cy) return;
     const { elements } = graphData;
-    console.log('Data Sync Effect running. Elements:', elements.length);
-
-    if (elements.length === 0 && cy.nodes().length > 0) {
-        console.warn('Skipping graph update: incoming data is empty.');
-        return; 
-    }
     
     cy.batch(() => {
         const existingNodes = cy!.nodes();
@@ -423,173 +485,207 @@
     }
   });
 
-  // Effect 2: Animation Loop (Ripple & Expand)
+  // Effect 2: Physics-based Animation Loop
   $effect(() => {
     if (!cy) return;
     
     const current = expandedCluster; 
     const previous = prevExpandedCluster; 
-    
-    const escapeSelector = (str: string) => str.replace(/([!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~])/g, '\\$1');
 
-    // 1. Reconcile Helper (Matches React logic)
-    const reconcileNeighborFade = (key: string | null) => {
-      if (!key) {
-        cy!.nodes('.neighbor-repelled').removeClass('neighbor-repelled');
-        return;
-      }
-      const selector = `[clusterKey = "${escapeSelector(key)}"]`;
-      const clusterNodes = cy!.nodes(selector);
-      
-      if (clusterNodes.length === 0) {
-        cy!.nodes('.neighbor-repelled').removeClass('neighbor-repelled');
-        return;
-      }
-
-      const otherNodes = cy!.nodes().difference(clusterNodes);
-      otherNodes.filter((n: any) => !n.hasClass('neighbor-repelled')).addClass('neighbor-repelled');
-      clusterNodes.filter((n: any) => n.hasClass('neighbor-repelled')).removeClass('neighbor-repelled');
-    };
-
-    // 2. Cleanup Helper
-    const cleanupReconcileFade = () => {
-      if (reconcileRaf !== null) {
-        cancelAnimationFrame(reconcileRaf);
-        reconcileRaf = null;
-      }
-    };
-
-    // 3. Scheduler (Double RAF to wait for paint)
-    const scheduleReconcileFade = (key: string | null) => {
-      if (reconcileRaf !== null) {
-        cancelAnimationFrame(reconcileRaf);
-      }
-      reconcileRaf = requestAnimationFrame(() => {
-        reconcileRaf = requestAnimationFrame(() => {
-          reconcileRaf = null;
-          reconcileNeighborFade(key);
-        });
-      });
-    };
-
-    const applyRipple = (key: string, expand: boolean, affectedNodes: any) => {
-      const meta = clusterCentersRef.get(key);
-      if (!meta) return;
-      const safeZone = meta.expandedRadius + 60;
-      const rippleFalloffZone = 200;
-      const rippleReach = safeZone + rippleFalloffZone + 120;
-
-      affectedNodes.forEach((node: any) => {
-        const baseX = Number(node.data('baseX'));
-        const baseY = Number(node.data('baseY'));
-        const dx = baseX - meta.centerX;
-        const dy = baseY - meta.centerY;
-        const distance = Math.hypot(dx, dy) || 1;
-
-        if (!expand) {
-          const pos = node.position();
-          const offsetFromBase = Math.hypot(pos.x - baseX, pos.y - baseY);
-          if (offsetFromBase < 0.75) return;
-          node.animate({ position: { x: baseX, y: baseY } }, { duration: distance > rippleReach ? 160 : 220, easing: distance > rippleReach ? 'ease-out' : 'ease-in-out', queue: false });
-          return;
-        }
-
-        if (distance > rippleReach) return;
-        let targetX = baseX, targetY = baseY;
-        if (distance < safeZone) {
-          const pushFactor = safeZone / distance;
-          targetX = meta.centerX + dx * pushFactor * 1.05;
-          targetY = meta.centerY + dy * pushFactor * 1.05;
-        } else if (distance < safeZone + rippleFalloffZone) {
-          const proximity = 1 - ((distance - safeZone) / rippleFalloffZone);
-          const nudge = proximity * 60;
-          const scale = (distance + nudge) / distance;
-          targetX = meta.centerX + dx * scale;
-          targetY = meta.centerY + dy * scale;
-        }
-        
-        const pos = node.position();
-        if (Math.hypot(pos.x - targetX, pos.y - targetY) < 0.9 && !node.animated()) return;
-        node.animate({ position: { x: targetX, y: targetY } }, { duration: 300, easing: 'ease-in-out', queue: false });
-      });
-    };
-
-    const animateCluster = (key: string | null, expand: boolean, fadeNeighbors: boolean) => {
-      if (!key) return;
-      const selector = `[clusterKey = "${escapeSelector(key)}"]`;
-      const nodes = cy!.nodes(selector);
-      if (expand && nodes.length === 0) {
-        cy!.nodes().removeClass('neighbor-repelled');
-        return;
-      }
-      
-      nodes.stop(true);
-      if (expand) nodes.removeClass('neighbor-repelled');
-      
-      nodes.forEach((node: any) => {
-        const targetX = expand ? Number(node.data('expandedX')) : Number(node.data('baseX'));
-        const targetY = expand ? Number(node.data('expandedY')) : Number(node.data('baseY'));
-        if (expand) node.addClass('cluster-expanded'); else node.removeClass('cluster-expanded');
-        node.animate({ position: { x: targetX, y: targetY } }, { duration: expand ? 260 : 180, easing: 'ease-in-out', queue: false });
-      });
-
-      const otherNodes = cy!.nodes().difference(nodes);
-      // Immediate fade class toggle based on flag, but reconciled later
-      if (fadeNeighbors) otherNodes.addClass('neighbor-repelled'); else otherNodes.removeClass('neighbor-repelled');
-
-      if (expand) {
-        const meta = clusterCentersRef.get(key);
-        if (!meta) return;
-        const rippleReach = meta.expandedRadius + 60 + 200 + 120;
-        const rippleNodes = otherNodes.filter((node: any) => {
-           const dx = Number(node.data('baseX')) - meta.centerX;
-           const dy = Number(node.data('baseY')) - meta.centerY;
-           return (Math.hypot(dx, dy) || 1) <= rippleReach;
-        });
-        applyRipple(key, true, rippleNodes);
-      } else {
-        applyRipple(key, false, otherNodes);
-      }
-    };
-
-    if (previous && previous !== current) {
-      if (current) {
-        // Switched from one cluster to another directly
-        const prevSelector = `[clusterKey = "${escapeSelector(previous)}"]`;
-        cy!.nodes(prevSelector).removeClass('cluster-expanded');
-        animateCluster(current, true, true);
-        
-        const meta = clusterCentersRef.get(current);
-        if (meta) {
-           const selector = `[clusterKey = "${escapeSelector(current)}"]`;
-           const nextNodes = cy!.nodes(selector);
-           const farNodes = cy!.nodes().difference(nextNodes).filter((n:any) => {
-             const dx = Number(n.data('baseX')) - meta.centerX;
-             const dy = Number(n.data('baseY')) - meta.centerY;
-             return Math.hypot(dx, dy) > (meta.expandedRadius + 380);
-           });
-           applyRipple(current, false, farNodes);
-        }
-        prevExpandedCluster = current;
-        scheduleReconcileFade(current);
-        return cleanupReconcileFade; // Return cleanup function
-      }
-      
-      // Collapsed to null
-      animateCluster(previous, false, false);
-      prevExpandedCluster = current;
-      scheduleReconcileFade(null);
-      return cleanupReconcileFade;
-    }
-    
-    // Initial expand or data reload
-    if (current) {
-      animateCluster(current, true, true);
-    }
+    if (current === previous) return;
     prevExpandedCluster = current;
-    scheduleReconcileFade(current);
+
+    // Physics Engine
+    const stiffness = 0.06; // 0.1 = Sluggish, 0.3 = Snappy
+    const friction = 0.8;
+    const minMove = 0.5;
+
+    let loopRaf: number | null = null;
+
+    const runPhysics = () => {
+        let active = false;
+        
+        // 1. Determine Targets
+        // Ideally we cache this, but calculating per frame is robust against thrashing
+        const nodes = cy!.nodes();
+        const escapeSelector = (str: string) => str.replace(/([!"#$%&'()*+,./:;<=>?@[\\]^`{|}~])/g, '\\$1');
+        
+        // Context for Ripple
+        let expandedMeta: any = null;
+        let expandedNodes: any = null;
+        if (current) {
+            expandedMeta = clusterCentersRef.get(current);
+            // Explicit filter to avoid selector bugs
+            expandedNodes = cy!.nodes().filter((n: any) => n.data('clusterKey') === current);
+        }
+
+        nodes.forEach(node => {
+            // Determine Goal Position
+            let targetX = Number(node.data('baseX'));
+            let targetY = Number(node.data('baseY'));
+            const isExpandedNode = expandedNodes && expandedNodes.has(node);
+
+            if (isExpandedNode) {
+                targetX = Number(node.data('expandedX'));
+                targetY = Number(node.data('expandedY'));
+            } else if (current && expandedMeta) {
+                // Apply Ripple Push to Neighbors
+                const baseX = Number(node.data('baseX'));
+                const baseY = Number(node.data('baseY'));
+                const dx = baseX - expandedMeta.centerX;
+                const dy = baseY - expandedMeta.centerY;
+                const dist = Math.hypot(dx, dy) || 1;
+                
+                const safeZone = expandedMeta.expandedRadius + 60;
+                const rippleReach = safeZone + 320;
+
+                if (dist < rippleReach) {
+                    if (dist < safeZone) {
+                        // Hard push
+                        const pushFactor = safeZone / dist;
+                        targetX = expandedMeta.centerX + dx * pushFactor * 1.05;
+                        targetY = expandedMeta.centerY + dy * pushFactor * 1.05;
+                    } else {
+                        // Soft nudge
+                        const proximity = 1 - ((dist - safeZone) / 320);
+                        const nudge = proximity * 60;
+                        const scale = (dist + nudge) / dist;
+                        targetX = expandedMeta.centerX + dx * scale;
+                        targetY = expandedMeta.centerY + dy * scale;
+                    }
+                }
+            }
+
+            // Interpolate (Lerp)
+            const pos = node.position();
+            const dx = targetX - pos.x;
+            const dy = targetY - pos.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist > minMove) {
+                active = true;
+                node.position({
+                    x: pos.x + dx * stiffness,
+                    y: pos.y + dy * stiffness
+                });
+            } else if (dist > 0) {
+                // Snap to finish
+                node.position({ x: targetX, y: targetY });
+            }
+
+            // Opacity Interpolation (Manual Fade)
+            const currentOp = Number(node.style('opacity')); // Cytoscape returns numbers for opacity
+            let targetOp = node.data('targetOpacity');
+            if (typeof targetOp !== 'number') targetOp = 1.0;
+
+            if (node.data('questState') === 'dim') {
+                targetOp = 0.1;
+            }
+
+            if (node.data('nexusState') === 'dim') {
+                targetOp = 0.3;
+            }
+
+            if (Math.abs(currentOp - targetOp) > 0.01) {
+                active = true;
+                const nextOp = currentOp + (targetOp - currentOp) * 0.05; // 0.05 = Very smooth/slow
+                node.style('opacity', nextOp);
+            } else if (currentOp !== targetOp) {
+                node.style('opacity', targetOp); // Snap
+            }
+        });
+
+        if (active) {
+            loopRaf = requestAnimationFrame(runPhysics);
+        }
+    };
+
+    // Kill any existing Cytoscape animations to prevent fighting
+    cy!.nodes().stop(true);
     
-    return cleanupReconcileFade;
+    // Start Physics Loop
+    runPhysics();
+
+    return () => {
+        if (loopRaf) cancelAnimationFrame(loopRaf);
+    };
+  });
+
+  // Coven Mode Logic
+  $effect(() => {
+    if (!cy) return;
+
+    if (covenMode) {
+      detectCommunities(cy);
+    }
+
+    cy.batch(() => {
+      if (!covenMode) {
+        cy!.elements().removeData('covenState');
+      } else {
+        cy!.nodes().forEach(n => {
+          if (n.data('communityColor')) {
+            n.data('covenState', 'active');
+          }
+        });
+      }
+    });
+  });
+
+  // Nexus Mode Logic
+  $effect(() => {
+    if (!cy) return;
+    
+    if (nexusMode) {
+       calculateCentrality(cy);
+    }
+
+    cy.batch(() => {
+      if (!nexusMode) {
+        cy!.elements().removeData('nexusState');
+      } else {
+        cy!.nodes().forEach(n => {
+          if (n.data('isKeystone')) {
+            n.data('nexusState', 'keystone');
+          } else {
+            n.data('nexusState', 'dim');
+          }
+        });
+        cy!.edges().forEach(e => e.data('nexusState', 'dim'));
+      }
+    });
+  });
+
+  // Quest Mode Logic
+  $effect(() => {
+    if (!cy) return;
+
+    cy.batch(() => {
+      if (!activeQuestId) {
+        // Clear Quest State
+        cy!.elements().removeData('questState');
+      } else {
+        const { nodeIds, edgeIds } = findQuestPath(cy!, activeQuestId);
+        
+        cy!.nodes().forEach(n => {
+          if (n.id() === activeQuestId) {
+            n.data('questState', 'target');
+          } else if (nodeIds.has(n.id())) {
+            n.data('questState', 'active');
+          } else {
+            n.data('questState', 'dim');
+          }
+        });
+
+        cy!.edges().forEach(e => {
+          if (edgeIds.has(e.id())) {
+            e.data('questState', 'active');
+          } else {
+            e.data('questState', 'dim');
+          }
+        });
+      }
+    });
   });
 
   // Mount
@@ -618,124 +714,133 @@
 
     // Optimized MouseOver
     cy.on('mouseover', 'node', (e: EventObjectNode) => {
+      if (hideTooltipTimeout) {
+        clearTimeout(hideTooltipTimeout);
+        hideTooltipTimeout = null;
+      }
+      // Cancel any pending show timer
+      if (tooltipTimer) {
+          clearTimeout(tooltipTimer);
+          tooltipTimer = null;
+      }
+
       pointerOverNode = true;
       const pos = e.renderedPosition;
       const coords = clampTooltipCoords(pos.x + 10, pos.y + 10);
       const d = e.target.data();
-      tooltip = {
-        visible: true, x: coords.x, y: coords.y,
-        id: d.id, title: d.label, description: d.description,
-        status: d.status, depthTarget: d.depthTarget || '—', depthMessage: d.depthMessage || ''
-      };
       const key = d.clusterKey;
-      if (key) {
-        if (collapseTimeout) clearTimeout(collapseTimeout);
-        pointerInsideCluster = true;
-        expandedCluster = key;
+
+      if (d.isSafeZone) {
+          // Hovering the safe zone plate: Keep expanded, no tooltip
+          if (collapseTimeout) {
+              clearTimeout(collapseTimeout);
+              collapseTimeout = null;
+          }
+          // Keep tooltip alive if we are in the safe zone
+          if (hideTooltipTimeout) {
+              clearTimeout(hideTooltipTimeout);
+              hideTooltipTimeout = null;
+          }
+          pointerOverNode = true;
+          return;
       }
+      
+      // Expand Cluster on Hover
+      if (key) {
+        pointerPosition = e.position || pointerPosition;
+        if (collapseTimeout) {
+            clearTimeout(collapseTimeout);
+            collapseTimeout = null;
+        }
+        setExpandedCluster(key);
+      }
+
+      // Delay Tooltip to allow expansion
+      tooltipTimer = setTimeout(() => {
+          if (pointerOverNode) {
+              tooltip = {
+                visible: true, x: coords.x, y: coords.y,
+                id: d.id, title: d.label, description: d.description,
+                status: d.status, depthTarget: d.depthTarget || '—', depthMessage: d.depthMessage || ''
+              };
+          }
+      }, 300);
     });
 
     // Optimized MouseOut
     cy.on('mouseout', 'node', (e: EventObjectNode) => {
       pointerOverNode = false;
-      tooltip.visible = false;
-      const key = e.target.data('clusterKey');
-      if (collapseTimeout) clearTimeout(collapseTimeout);
-      if (key) {
-        if (pointerPosition && expandedCluster === key) {
-           const meta = clusterCentersRef.get(key);
-           if (meta) {
-              const dist = Math.hypot(pointerPosition.x - meta.centerX, pointer.y - meta.centerY);
-              if (dist <= meta.expandedRadius + hoverGraceDistance) {
-                 pointerInsideCluster = true;
-                 return;
-              }
-           }
-        }
-        pointerInsideCluster = false;
+      
+      // Cancel pending show timer
+      if (tooltipTimer) {
+          clearTimeout(tooltipTimer);
+          tooltipTimer = null;
       }
-      queueCollapse();
+
+      // Debounce hide to prevent flicker during expansion movement
+      hideTooltipTimeout = setTimeout(() => {
+        tooltip.visible = false;
+      }, 200);
     });
 
-    // Optimized Pointer Move Logic
-    const processPointerMove = (event: MouseEvent) => {
+
+    // Simplified Interaction Logic (Event-Driven)
+    const handleInteraction = (event: MouseEvent) => {
         if (!cy) return;
         
-        if (pointerOverNode && expandedClusterRef) return;
-
-        const renderer = (cy as any).renderer();
-        let pointer = { x: 0, y: 0 };
-        if (renderer && renderer.projectIntoViewport) {
-           const [x, y] = renderer.projectIntoViewport(event.clientX, event.clientY);
-           pointer = { x, y };
-        } else {
-           const rect = graphContainer.getBoundingClientRect();
-           const zoom = cy.zoom();
-           const pan = cy.pan();
-           pointer = { x: (event.clientX - rect.left - pan.x) / zoom, y: (event.clientY - rect.top - pan.y) / zoom };
-        }
-        pointerPosition = pointer;
-        
-        const centers = clusterCentersRef;
-        const chooseCluster = (key: string | null) => {
-            if (key) {
-                pointerInsideCluster = true;
-                if (lastPointerCluster !== key) {
-                    lastPointerCluster = key;
-                    expandedCluster = key;
-                }
-                if (collapseTimeout) clearTimeout(collapseTimeout);
-            } else {
-                if (!pointerOverNode) {
-                    pointerInsideCluster = false;
-                    lastPointerCluster = null;
-                    queueCollapse();
-                }
-            }
+        // Only update pointer for physics/idle checks
+        const rect = graphContainer.getBoundingClientRect();
+        const zoom = cy.zoom();
+        const pan = cy.pan();
+        const pointer = { 
+            x: (event.clientX - rect.left - pan.x) / zoom, 
+            y: (event.clientY - rect.top - pan.y) / zoom 
         };
+        pointerPosition = pointer;
 
-        const currentKey = expandedClusterRef;
-        if (currentKey) {
-            const meta = centers.get(currentKey);
+        // Check Safe Zone Radius
+        let isInsideRadius = false;
+        if (expandedClusterRef) {
+            const centers = clusterCentersRef;
+            const meta = centers.get(expandedClusterRef);
             if (meta) {
-                const dist = Math.hypot(pointer.x - meta.centerX, pointer.y - meta.centerY);
-                if (dist <= meta.expandedRadius + hoverGraceDistance) {
-                    chooseCluster(currentKey);
-                    return;
+                // Radius Check
+                const distToCenter = Math.hypot(pointer.x - meta.centerX, pointer.y - meta.centerY);
+                if (distToCenter <= meta.expandedRadius + hoverGraceDistance) {
+                    isInsideRadius = true;
                 }
             }
         }
 
-        let targetKey: string | null = null;
-        let nearestDist = Infinity;
-        
-        for (const [key, meta] of centers.entries()) {
-             const dist = Math.hypot(pointer.x - meta.centerX, pointer.y - meta.centerY);
-             if (dist <= meta.baseRadius + hoverGraceDistance && dist < nearestDist) {
-                 nearestDist = dist;
-                 targetKey = key;
-             }
+        // Watchdog: If we are not hovering a node AND not in safe zone, and we are expanded, 
+        // and no collapse is scheduled... we are stuck. Force collapse.
+        if (!pointerOverNode && !isInsideRadius && expandedClusterRef && !collapseTimeout) {
+            setExpandedCluster(null);
         }
-        
-        chooseCluster(targetKey);
+
+        // Force visual fade update every frame to ensure consistency
+        if ((pointerOverNode || isInsideRadius) && expandedClusterRef) {
+            updateFade(expandedClusterRef);
+        } else {
+            updateFade(null);
+        }
     };
 
     const handlePointerMove = (e: MouseEvent) => {
-        pendingPointerEvent = e;
+        // Simple throttle
         if (pointerMoveRaf) return;
         pointerMoveRaf = requestAnimationFrame(() => {
             pointerMoveRaf = null;
-            if (pendingPointerEvent) processPointerMove(pendingPointerEvent);
+            handleInteraction(e);
         });
     };
+
     
     const handlePointerLeave = () => {
         pointerPosition = null;
         pendingPointerEvent = null;
         if (pointerMoveRaf) cancelAnimationFrame(pointerMoveRaf);
-        pointerInsideCluster = false;
-        lastPointerCluster = null;
-        queueCollapse();
+        setExpandedCluster(null);
     };
 
     graphContainer.addEventListener('mousemove', handlePointerMove);
